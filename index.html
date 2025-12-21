@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <?!= include('style'); ?>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">HCIS Sabilul Qur'an</div>
+      <button id="btnLogout" class="btn ghost hidden" onclick="logout()">Keluar</button>
+    </header>
+
+    <main class="content" id="root"></main>
+
+<nav class="bottombar hidden" id="nav">
+  <button class="tab active" onclick="go('dash')">Dashboard</button>
+  <button class="tab" onclick="go('profil')">Profil</button>
+  <button class="tab" onclick="go('settings')">Setelan</button>
+</nav>
+
+  </div>
+<?!= include('settings'); ?>
+  <?!= include('app'); ?>
+</body>
+</html>

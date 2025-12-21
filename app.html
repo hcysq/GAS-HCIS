@@ -1,0 +1,362 @@
+<script>
+const root = document.getElementById('root');
+const nav = document.getElementById('nav');
+const btnLogout = document.getElementById('btnLogout');
+
+let state = {
+  me: null,
+  route: 'login',
+};
+
+function isAuthed(){ return !!(state.me && state.me.ok); }
+
+function goto(route){
+  if (!isAuthed()){
+    state.route='login';
+    renderLogin();
+    return;
+  }
+  state.route = route || 'dash';
+  renderAppShell();
+  setActiveTab(state.route);
+  renderRoute(state.route);
+}
+
+function boot(){
+  google.script.run.withSuccessHandler(res=>{
+    if(!res || !res.ok){
+      state.me=null;
+      state.route='login';
+      renderLogin();
+      return;
+    }
+    state.me=res;
+    goto('dash');
+  }).authMe();
+}
+
+/* ===================== LOGIN ===================== */
+function renderLogin(msg=''){
+  nav.classList.add('hidden');
+  btnLogout.classList.add('hidden');
+
+  root.innerHTML=`
+    <div class="card">
+      <div style="font-size:18px;font-weight:900;margin-bottom:6px;">Masuk HCIS</div>
+      <div class="muted" style="margin-bottom:12px;">Login menggunakan <b>NIP</b> dan <b>Password</b>.</div>
+
+      ${msg ? `<div class="muted" style="color:#ffb4b4;margin-bottom:10px;">${escapeHtml(msg)}</div>` : ''}
+
+      <div style="margin-bottom:10px;">
+        <input id="nip" placeholder="NIP" autocomplete="username">
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div class="input-wrap">
+          <input id="pin" type="password" placeholder="Password" autocomplete="current-password">
+          <button type="button" class="peek-btn" onclick="togglePassword('pin', this)" aria-label="Tampilkan password">
+            👁️
+          </button>
+        </div>
+      </div>
+
+      <button class="btn primary" onclick="login()">Masuk</button>
+      <div class="muted" style="margin-top:12px;">Jika lupa password, hubungi Admin HC.</div>
+    </div>
+  `;
+
+  // Optional: enter to submit
+  setTimeout(()=>{
+    const pin = document.getElementById('pin');
+    if(pin){
+      pin.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') login();
+      });
+    }
+  }, 0);
+}
+
+function renderAppShell(){
+  nav.classList.remove('hidden');
+  btnLogout.classList.remove('hidden');
+}
+
+/* ===================== ROUTES ===================== */
+function renderRoute(route){
+  if(!isAuthed()) return renderLogin();
+
+  if(route==='dash') return renderDashboard();
+  if(route==='profil') return renderProfil();
+  if(route==='settings') return renderSettings(); // <- dari settings.html
+
+  // placeholders modul
+  if(route==='projects') return renderPlaceholder_('Progres Proyek');
+  if(route==='absensi') return renderPlaceholder_('Absensi');
+  if(route==='welfare') return renderPlaceholder_('Kesejahteraan');
+  if(route==='development') return renderPlaceholder_('Pengembangan');
+
+  return renderDashboard();
+}
+
+/* ===================== DASHBOARD ===================== */
+function renderDashboard(){
+  const me = state.me;
+
+  root.innerHTML=`
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;">Assalamu'alaikum, ${escapeHtml(me.nama||me.nip)}</div>
+      <div class="muted" style="margin-top:4px;">
+        NIP: <b>${escapeHtml(me.nip)}</b> • Role: <b>${escapeHtml(me.role)}</b>
+      </div>
+      <div class="muted" style="margin-top:6px;">
+        <span id="dashUnit">Unit: …</span> • <span id="dashJabatan">Jabatan: …</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Fitur HCIS</div>
+
+      <div class="tileGrid">
+        <div class="tile" onclick="goto('projects')">
+          <div class="tileIcon">📌</div>
+          <div>
+            <div class="tileTitle">Progres Proyek</div>
+            <div class="tileDesc">Program, milestone, task, laporan pekanan.</div>
+          </div>
+        </div>
+
+        <div class="tile" onclick="goto('absensi')">
+          <div class="tileIcon">🗓️</div>
+          <div>
+            <div class="tileTitle">Absensi</div>
+            <div class="tileDesc">Jadwal pekanan, hadir, lembur, cuti & izin.</div>
+          </div>
+        </div>
+
+        <div class="tile" onclick="goto('welfare')">
+          <div class="tileIcon">💳</div>
+          <div>
+            <div class="tileTitle">Kesejahteraan</div>
+            <div class="tileDesc">Slip gaji, klaim, reimbursement, pinjaman.</div>
+          </div>
+        </div>
+
+        <div class="tile" onclick="goto('development')">
+          <div class="tileIcon">🎓</div>
+          <div>
+            <div class="tileTitle">Pengembangan</div>
+            <div class="tileDesc">Onboarding, kinerja, LMS, psikotes.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:12px;">
+        Catatan: detail tiap fitur akan kita isi bertahap setelah CORE stabil.
+      </div>
+    </div>
+  `;
+
+  // ringan: ambil unit/jabatan dari Masterdata
+  google.script.run.withSuccessHandler(res=>{
+    if(!res || !res.ok || !res.data) return;
+    const d = res.data;
+    const unit = (d['UNIT']||d['Unit']||'-');
+    const jabatan = (d['JABATAN']||d['JABATAN STRUKTURAL']||d['JABATAN FUNGSIONAL']||'-');
+    const elUnit = document.getElementById('dashUnit');
+    const elJab = document.getElementById('dashJabatan');
+    if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
+    if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
+  }).getProfilMasterdataSaya();
+}
+
+/* ===================== PROFIL (ATS friendly) ===================== */
+function renderProfil(){
+  // skeleton
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;">Profil</div>
+      <div class="muted" style="margin-top:6px;">Memuat data dari Masterdata…</div>
+    </div>
+  `;
+
+  google.script.run.withSuccessHandler(res=>{
+    if(!res || !res.ok){
+      root.innerHTML = `
+        <div class="card">
+          <div style="font-weight:900;font-size:18px;">Profil</div>
+          <div class="muted" style="margin-top:6px;">
+            ${escapeHtml(res?.msg || 'Gagal memuat profil. Pastikan NIP ada di Masterdata.')}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const d = res.data || {};
+    const me = state.me || {};
+
+    const nama = pick_(d, ['NAMA','Nama']) || me.nama || '-';
+    const nip  = pick_(d, ['NIP']) || me.nip || '-';
+    const unit = pick_(d, ['UNIT','Unit']) || '-';
+    const jabatan = pick_(d, ['JABATAN','JABATAN STRUKTURAL','JABATAN FUNGSIONAL']) || '-';
+    const statusAktif = pick_(d, ['STATUS AKTIF','Status Aktif']) || '-';
+    const statusKepeg = pick_(d, ['STATUS KEPEGAWAIAN','JENIS KEPEGAWAIAN','Jenis Kepegawaian']) || '-';
+    const tmt = pick_(d, ['TMT']) || '-';
+    const email = pick_(d, ['EMAIL','Email']) || me.email || '-';
+    const hp = pick_(d, ['NO HP','NO. HP','HP','No HP','No. HP']) || '-';
+
+    const tempatLahir = pick_(d, ['TEMPAT LAHIR','Tempat Lahir']) || '';
+    const tglLahir = pick_(d, ['TANGGAL LAHIR (TTTT-BB-HH)','TANGGAL LAHIR','Tanggal Lahir']) || '';
+    const ttl = [tempatLahir, tglLahir].filter(x => String(x||'').trim() !== '').join(', ') || '-';
+
+    const pendidikan = pick_(d, ['PENDIDIKAN TERAKHIR','Pendidikan Terakhir']) || '-';
+    const alamatRingkas = [
+      pick_(d, ['KECAMATAN']),
+      pick_(d, ['KOTA/KABUPATEN','KOTA','KABUPATEN']),
+      pick_(d, ['KODE POS'])
+    ].filter(x => String(x||'').trim() !== '').join(', ') || '-';
+
+    const nikRaw = pick_(d, ['NIK']) || '';
+    const nikMasked = nikRaw ? maskNIK_(nikRaw) : '-';
+    const masaKerja = computeMasaKerja_(tmt);
+
+    root.innerHTML = `
+      <div class="card">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:20px;font-weight:900;line-height:1.2;">${escapeHtml(nama)}</div>
+          <div class="muted" style="line-height:1.6;">
+            NIP: <b>${escapeHtml(nip)}</b> • Unit: <b>${escapeHtml(unit)}</b><br>
+            Jabatan: <b>${escapeHtml(jabatan)}</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900;margin-bottom:10px;">Ringkasan Kepegawaian</div>
+        ${kv('Status aktif', statusAktif)}
+        ${kv('Status/jenis kepegawaian', statusKepeg)}
+        ${kv('TMT', tmt)}
+        ${kv('Masa kerja', masaKerja)}
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900;margin-bottom:10px;">Kontak</div>
+        ${kv('Email', email)}
+        ${kv('No. HP', hp)}
+        ${kv('Domisili (ringkas)', alamatRingkas)}
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900;margin-bottom:10px;">Data Pribadi</div>
+        ${kv('TTL', ttl)}
+        ${kv('Pendidikan terakhir', pendidikan)}
+        ${kv('NIK (mask)', nikMasked)}
+        <div class="muted" style="margin-top:10px;">
+          Catatan: detail sensitif (alamat lengkap/NIK full) sengaja tidak ditampilkan.
+        </div>
+      </div>
+    `;
+  }).getProfilMasterdataSaya();
+}
+
+/* ===================== PLACEHOLDER ===================== */
+function renderPlaceholder_(title){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;">${escapeHtml(title)}</div>
+      <div class="muted" style="margin-top:6px;">
+        Modul ini akan kita isi setelah CORE beres (data + approval + UI detail).
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn primary" onclick="goto('dash')">Kembali ke Dashboard</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ===================== NAV ===================== */
+function setActiveTab(route){
+  const tabs = nav.querySelectorAll('.tab');
+  tabs.forEach(t=>t.classList.remove('active'));
+  if(route==='dash') tabs[0]?.classList.add('active');
+  else if(route==='profil') tabs[1]?.classList.add('active');
+  else if(route==='settings') tabs[2]?.classList.add('active');
+  else tabs[0]?.classList.add('active');
+}
+function go(route){ goto(route); }
+
+/* ===================== AUTH ===================== */
+function login(){
+  const nip = document.getElementById('nip')?.value || '';
+  const pin = document.getElementById('pin')?.value || '';
+
+  google.script.run.withSuccessHandler(res=>{
+    if(!res || !res.ok) return renderLogin(res?.msg || 'Login gagal');
+    boot();
+  }).authLogin(nip, pin);
+}
+function logout(){
+  google.script.run.withSuccessHandler(()=>{
+    state.me=null;
+    state.route='login';
+    renderLogin('Anda sudah keluar.');
+  }).authLogout();
+}
+
+/* ===================== PEEK PASSWORD ===================== */
+function togglePassword(inputId, btn){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.textContent = isHidden ? '🙈' : '👁️';
+}
+
+/* ===================== UTILS ===================== */
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"'`=\/]/g, s => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',
+    "'":'&#39;','`':'&#x60;','=':'&#x3D;','/':'&#x2F;'
+  }[s]));
+}
+function kv(label, value){
+  return `
+    <div style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;">
+      <div style="flex:0 0 160px;max-width:160px;" class="muted">${escapeHtml(label)}</div>
+      <div style="flex:1;font-weight:800;color:rgba(255,255,255,.92);">${escapeHtml(value ?? '-')}</div>
+    </div>
+  `;
+}
+function pick_(obj, keys){
+  for (const k of keys){
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k)){
+      const v = obj[k];
+      if (v !== null && v !== undefined && String(v).trim() !== '') return v;
+    }
+  }
+  return '';
+}
+function maskNIK_(nik){
+  const s = String(nik).replace(/\s+/g,'').trim();
+  if (s.length <= 4) return s;
+  return '****-****-****-' + s.slice(-4);
+}
+function computeMasaKerja_(tmtVal){
+  try{
+    if(!tmtVal) return '-';
+    const dt = new Date(tmtVal);
+    if (isNaN(dt.getTime())) return '-';
+    const now = new Date();
+    let years = now.getFullYear() - dt.getFullYear();
+    let months = now.getMonth() - dt.getMonth();
+    if (months < 0){ years -= 1; months += 12; }
+    if (years < 0) return '-';
+    if (years === 0) return `${months} bulan`;
+    return `${years} tahun ${months} bulan`;
+  }catch(e){
+    return '-';
+  }
+}
+
+boot();
+</script>

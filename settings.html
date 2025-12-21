@@ -1,0 +1,189 @@
+<script>
+/**
+ * Settings Wizard: Change Password with WA OTP
+ * Depends on:
+ * - escapeHtml() in app.html
+ * - goto() in app.html
+ * Backend:
+ * - requestPasswordChange(oldPassword)
+ * - verifyPasswordOTP(otp)
+ * - updatePassword(newPass)
+ */
+
+const SETTINGS_STATE = {
+  step: 1,               // 1=check old password + send OTP, 2=verify OTP, 3=set new password
+  msg: '',
+  msgType: 'info',       // info | error | success
+  lastOtpSentAt: null,
+};
+
+function renderSettings(){
+  // wrapper
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;">Setelan</div>
+      <div class="muted" style="margin-top:6px;">Keamanan akun & pengaturan dasar.</div>
+    </div>
+
+    ${renderChangePasswordCard_()}
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Akun</div>
+      <button class="btn" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.22);" onclick="logout()">
+        Keluar
+      </button>
+    </div>
+  `;
+}
+
+function renderChangePasswordCard_(){
+  const msgHtml = SETTINGS_STATE.msg
+    ? `<div class="muted" style="margin:10px 0; color:${SETTINGS_STATE.msgType==='error' ? '#ffb4b4' : (SETTINGS_STATE.msgType==='success' ? '#b8ffcf' : 'rgba(255,255,255,.72)')};">
+         ${escapeHtml(SETTINGS_STATE.msg)}
+       </div>`
+    : '';
+
+  // Step content
+  let stepHtml = '';
+
+  if (SETTINGS_STATE.step === 1) {
+    stepHtml = `
+      <div class="muted" style="margin-bottom:10px;">
+        Untuk mengganti password, masukkan <b>password lama</b> lalu kirim kode OTP ke WhatsApp.
+      </div>
+      <div style="margin-bottom:10px;">
+        <input id="oldPass" type="password" placeholder="Password lama" autocomplete="current-password">
+      </div>
+      <button class="btn primary" onclick="settingsSendOTP_()">Kirim Kode Verifikasi (WA)</button>
+    `;
+  }
+
+  if (SETTINGS_STATE.step === 2) {
+    stepHtml = `
+      <div class="muted" style="margin-bottom:10px;">
+        Masukkan <b>OTP 6 digit</b> yang dikirim ke WhatsApp. Berlaku 5 menit.
+      </div>
+      <div style="margin-bottom:10px;">
+        <input id="otp" inputmode="numeric" placeholder="OTP (6 digit)" autocomplete="one-time-code">
+      </div>
+      <div class="row">
+        <div class="col">
+          <button class="btn primary" onclick="settingsVerifyOTP_()">Verifikasi OTP</button>
+        </div>
+        <div class="col">
+          <button class="btn" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.22);" onclick="settingsBackToStep1_()">
+            Kirim Ulang
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (SETTINGS_STATE.step === 3) {
+    stepHtml = `
+      <div class="muted" style="margin-bottom:10px;">
+        Password minimal <b>8 karakter</b>, mengandung <b>huruf besar</b>, <b>angka</b>, dan <b>simbol</b> (mis: ! @ #).
+      </div>
+      <div style="margin-bottom:10px;">
+        <input id="newPass" type="password" placeholder="Password baru" autocomplete="new-password">
+      </div>
+      <div style="margin-bottom:10px;">
+        <input id="newPass2" type="password" placeholder="Ulangi password baru" autocomplete="new-password">
+      </div>
+      <button class="btn primary" onclick="settingsUpdatePassword_()">Simpan Password Baru</button>
+      <div class="muted" style="margin-top:10px;">
+        Setelah berhasil, Anda akan otomatis logout dan diminta login ulang.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Ganti Password</div>
+      ${msgHtml}
+      ${stepHtml}
+    </div>
+  `;
+}
+
+/* ===== UI actions ===== */
+
+function settingsSetMsg_(msg, type='info'){
+  SETTINGS_STATE.msg = msg || '';
+  SETTINGS_STATE.msgType = type;
+  renderSettings();
+}
+
+function settingsBackToStep1_(){
+  SETTINGS_STATE.step = 1;
+  SETTINGS_STATE.msg = '';
+  renderSettings();
+}
+
+function settingsSendOTP_(){
+  const oldPass = document.getElementById('oldPass')?.value || '';
+  if (!oldPass) return settingsSetMsg_('Password lama wajib diisi.', 'error');
+
+  settingsSetMsg_('Mengirim OTP ke WhatsApp…', 'info');
+
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'Gagal mengirim OTP.', 'error');
+      return;
+    }
+    SETTINGS_STATE.step = 2;
+    SETTINGS_STATE.lastOtpSentAt = new Date();
+    settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek WhatsApp.', 'success');
+  }).requestPasswordChange(oldPass);
+}
+
+function settingsVerifyOTP_(){
+  const otp = (document.getElementById('otp')?.value || '').trim();
+  if (!otp) return settingsSetMsg_('OTP wajib diisi.', 'error');
+  if (!/^\d{6}$/.test(otp)) return settingsSetMsg_('OTP harus 6 digit angka.', 'error');
+
+  settingsSetMsg_('Memverifikasi OTP…', 'info');
+
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'OTP tidak valid.', 'error');
+      return;
+    }
+    SETTINGS_STATE.step = 3;
+    settingsSetMsg_('OTP valid. Silakan buat password baru.', 'success');
+  }).verifyPasswordOTP(otp);
+}
+
+function settingsUpdatePassword_(){
+  const p1 = document.getElementById('newPass')?.value || '';
+  const p2 = document.getElementById('newPass2')?.value || '';
+  if (!p1 || !p2) return settingsSetMsg_('Password baru & konfirmasi wajib diisi.', 'error');
+  if (p1 !== p2) return settingsSetMsg_('Konfirmasi password tidak sama.', 'error');
+
+  // client-side policy check (backend juga cek)
+  const policyOk = (
+    p1.length >= 8 &&
+    /[A-Z]/.test(p1) &&
+    /[0-9]/.test(p1) &&
+    /[!@#$%^&*()_+\-=]/.test(p1)
+  );
+  if (!policyOk) {
+    return settingsSetMsg_('Password belum memenuhi aturan (8+, huruf besar, angka, simbol).', 'error');
+  }
+
+  settingsSetMsg_('Menyimpan password baru…', 'info');
+
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'Gagal mengganti password.', 'error');
+      return;
+    }
+    // backend menghapus session → kita arahkan kembali ke login
+    state.me = null;
+    state.route = 'login';
+    nav.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+    renderLogin('Password berhasil diubah. Silakan login ulang.');
+  }).updatePassword(p1);
+}
+</script>
