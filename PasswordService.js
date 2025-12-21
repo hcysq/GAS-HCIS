@@ -177,27 +177,8 @@ function updatePassword(newPass){
 /* ===================== STARSENDER CONFIG ===================== */
 
 function getConfigValue_(key){
-  // Prefer canonical config (HCIS_Config) via helper
   const canonical = cfgGet(key, '');
-  if (String(canonical || '').trim()) return String(canonical).trim();
-
-  // Fallback: legacy Config sheet (horizontal header/value rows)
-  const legacyName = typeof CONFIG_SHEET_LEGACY !== 'undefined'
-    ? CONFIG_SHEET_LEGACY
-    : 'Config';
-  const sh = SpreadsheetApp.getActive().getSheetByName(legacyName);
-  if (!sh) return '';
-
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return '';
-
-  const headers = values[0];
-  const data = values[1];
-
-  const idx = headers.indexOf(key);
-  if (idx === -1) return '';
-
-  return String(data[idx] ?? '').trim();
+  return String(canonical ?? '').trim();
 }
 
 
@@ -210,11 +191,11 @@ function getConfigValue_(key){
  * Tapi ini dibuat fleksibel: tinggal sesuaikan 3 baris payload/headers kalau perlu.
  */
 function sendWAOTP_(waE164, otp){
-  const url = getConfigValue_('STARSENDER_URL');
-  const apiKey = getConfigValue_('STARSENDER_APIKEY');
+  const url = String(cfgGet('STARSENDER_URL', '') || '').trim();
+  const apiKey = String(cfgGet('STARSENDER_APIKEY', '') || '').trim();
 
-  if (!url) throw new Error('STARSENDER_URL belum diisi di Config');
-  if (!apiKey) throw new Error('STARSENDER_APIKEY belum diisi di Config');
+  if (!url) throw new Error('STARSENDER_URL belum diisi di HCIS_Config');
+  if (!apiKey) throw new Error('STARSENDER_APIKEY belum diisi di HCIS_Config');
 
   // samakan format dengan script PPh
   // tujuan = 62xxxxxxxxxx (tanpa +)
