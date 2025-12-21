@@ -180,6 +180,7 @@ function updatePassword(newPass){
  * MODE:
  * - bearer: pakai Authorization: Bearer <token>
  * - apikey: pakai headers X-Api-Key / api_key + device
+ * - legacy_sendText: endpoint lama yang butuh header apikey + payload tujuan/message
  *
  * Endpoint & format Starsender bisa beda antar akun/versi.
  * Tapi ini dibuat fleksibel: tinggal sesuaikan 3 baris payload/headers kalau perlu.
@@ -189,6 +190,7 @@ function sendWAOTP_(waE164, otp){
   const apiKey = cfgRequireString('STARSENDER_APIKEY');
   const modeRaw = cfgGet('STARSENDER_MODE', '');
   const mode = String(modeRaw || '').trim().toLowerCase();
+  const validModes = ['bearer', 'apikey', 'legacy_sendtext'];
 
   // samakan format dengan script PPh
   // tujuan = 62xxxxxxxxxx (tanpa +)
@@ -201,11 +203,11 @@ function sendWAOTP_(waE164, otp){
     "Jangan bagikan kode ini kepada siapa pun.";
 
   if (!mode) {
-    throw new Error('STARSENDER_MODE belum diisi di HCIS_Config. Isi dengan "bearer" atau "apikey" sesuai akun Starsender Anda.');
+    throw new Error('STARSENDER_MODE belum diisi di HCIS_Config. Isi dengan salah satu: bearer, apikey, legacy_sendText.');
   }
 
-  if (['bearer', 'apikey'].indexOf(mode) === -1) {
-    throw new Error('STARSENDER_MODE tidak valid. Gunakan "bearer" (Authorization header) atau "apikey" (api_key + device).');
+  if (validModes.indexOf(mode) === -1) {
+    throw new Error(`STARSENDER_MODE tidak dikenal ("${modeRaw}"). Isi dengan salah satu: bearer, apikey, legacy_sendText.`);
   }
 
   const headers = {};
@@ -216,6 +218,8 @@ function sendWAOTP_(waE164, otp){
 
   if (mode === 'bearer') {
     headers.Authorization = `Bearer ${apiKey}`;
+  } else if (mode === 'legacy_sendtext') {
+    headers.apikey = apiKey;
   } else {
     headers.apikey = apiKey;
     payload.api_key = apiKey;
