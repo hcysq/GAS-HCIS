@@ -177,6 +177,7 @@ function updatePassword(newPass){
 /* ===================== STARSENDER CONFIG ===================== */
 
 function getConfigValue_(key){
+  // Selalu ambil dari HCIS_Config via cfgGet (tidak ada fallback ke sheet Config)
   const canonical = cfgGet(key, '');
   return String(canonical ?? '').trim();
 }
@@ -191,8 +192,8 @@ function getConfigValue_(key){
  * Tapi ini dibuat fleksibel: tinggal sesuaikan 3 baris payload/headers kalau perlu.
  */
 function sendWAOTP_(waE164, otp){
-  const url = String(cfgGet('STARSENDER_URL', '') || '').trim();
-  const apiKey = String(cfgGet('STARSENDER_APIKEY', '') || '').trim();
+  const url = getConfigValue_('STARSENDER_URL');
+  const apiKey = getConfigValue_('STARSENDER_APIKEY');
 
   if (!url) throw new Error('STARSENDER_URL belum diisi di HCIS_Config');
   if (!apiKey) throw new Error('STARSENDER_APIKEY belum diisi di HCIS_Config');
