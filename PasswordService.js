@@ -177,7 +177,15 @@ function updatePassword(newPass){
 /* ===================== STARSENDER CONFIG ===================== */
 
 function getConfigValue_(key){
-  const sh = SpreadsheetApp.getActive().getSheetByName('Config');
+  // Prefer canonical config (HCIS_Config) via helper
+  const canonical = cfgGet(key, '');
+  if (String(canonical || '').trim()) return String(canonical).trim();
+
+  // Fallback: legacy Config sheet (horizontal header/value rows)
+  const legacyName = typeof CONFIG_SHEET_LEGACY !== 'undefined'
+    ? CONFIG_SHEET_LEGACY
+    : 'Config';
+  const sh = SpreadsheetApp.getActive().getSheetByName(legacyName);
   if (!sh) return '';
 
   const values = sh.getDataRange().getValues();
