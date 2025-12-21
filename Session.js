@@ -4,10 +4,14 @@
 
 function setSession_(user) {
   const token = Utilities.getUuid();
+  const ttlSeconds = cfgGetNumber(
+    CFG.SESSION_TTL_KEY,
+    21600 // default 6 jam jika config belum diisi
+  );
   CacheService.getUserCache().put(
     CFG.SESSION_TOKEN_KEY,
     token,
-    CFG.SESSION_TTL_SECONDS
+    ttlSeconds
   );
 
   const up = PropertiesService.getUserProperties();

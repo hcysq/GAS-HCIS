@@ -1,9 +1,9 @@
 /*************************************************
  * Config.gs - Single Source of Truth for HCIS
  * Canonical config sheet: "HCIS_Config" (Key, Value, Note)
+ * Sheet GID: 1743564124
  *
  * - ensureHCISConfigSheet_(): pastikan sheet & header
- * - migrateConfigToHCISConfig(): migrasi dari sheet lama "Config" jika ada
  * - cfgGet(key, default): ambil config (pakai cache)
  * - cfgSet(key, value, note): set config
  * - validateHCISConfig(): cek key penting
