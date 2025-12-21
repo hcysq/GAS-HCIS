@@ -176,13 +176,6 @@ function updatePassword(newPass){
 
 /* ===================== STARSENDER CONFIG ===================== */
 
-function getConfigValue_(key){
-  // Selalu ambil dari HCIS_Config via cfgGet (tidak ada fallback ke sheet Config)
-  const canonical = cfgGet(key, '');
-  return String(canonical ?? '').trim();
-}
-
-
 /**
  * MODE:
  * - bearer: pakai Authorization: Bearer <token>
@@ -192,11 +185,9 @@ function getConfigValue_(key){
  * Tapi ini dibuat fleksibel: tinggal sesuaikan 3 baris payload/headers kalau perlu.
  */
 function sendWAOTP_(waE164, otp){
-  const url = getConfigValue_('STARSENDER_URL');
-  const apiKey = getConfigValue_('STARSENDER_APIKEY');
-
-  if (!url) throw new Error('STARSENDER_URL belum diisi di HCIS_Config');
-  if (!apiKey) throw new Error('STARSENDER_APIKEY belum diisi di HCIS_Config');
+  const url = cfgRequireString('STARSENDER_URL');
+  const apiKey = cfgRequireString('STARSENDER_APIKEY');
+  const mode = cfgRequireString('STARSENDER_MODE').toLowerCase();
 
   // samakan format dengan script PPh
   // tujuan = 62xxxxxxxxxx (tanpa +)
@@ -208,11 +199,18 @@ function sendWAOTP_(waE164, otp){
     "Berlaku 5 menit.\n" +
     "Jangan bagikan kode ini kepada siapa pun.";
 
+  const headers = {};
+  if (mode === 'bearer') {
+    headers.Authorization = `Bearer ${apiKey}`;
+  } else if (mode === 'apikey') {
+    headers.apikey = apiKey;
+  } else {
+    throw new Error('STARSENDER_MODE tidak dikenali. Gunakan "bearer" atau "apikey".');
+  }
+
   const options = {
     method: 'post',
-    headers: {
-      apikey: apiKey
-    },
+    headers,
     payload: {
       tujuan: tujuan,
       message: message

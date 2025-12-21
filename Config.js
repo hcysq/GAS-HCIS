@@ -11,6 +11,7 @@
 
 const CONFIG_SHEET_CANONICAL = 'HCIS_Config';
 const CONFIG_SHEET_LEGACY = 'Config'; // jika masih ada
+const CONFIG_SHEET_GID = 1743564124; // GID tab HCIS_Config (untuk pesan error)
 
 // Cache key
 const _CFG_CACHE_KEY = 'HCIS_CFG_MAP_V1';
@@ -68,6 +69,19 @@ function cfgGetNumber(key, defaultValue) {
   const v = cfgGet(key, defaultValue);
   const n = Number(v);
   return isNaN(n) ? defaultValue : n;
+}
+
+function cfgGetString(key, defaultValue) {
+  const v = cfgGet(key, defaultValue);
+  return String(v ?? '').trim();
+}
+
+function cfgRequireString(key) {
+  const v = cfgGetString(key, '');
+  if (!v) {
+    throw new Error(`${key} belum diisi di ${CONFIG_SHEET_CANONICAL} (GID ${CONFIG_SHEET_GID})`);
+  }
+  return v;
 }
 
 function cfgSet(key, value, note) {
@@ -216,6 +230,32 @@ function migrateConfigToHCISConfig() {
 }
 
 /**
+ * Helper untuk buka Spreadsheet lain berdasarkan konfigurasi ID di HCIS_Config
+ */
+function getSpreadsheetFromConfig_(key, featureName) {
+  const ssId = cfgRequireString(key);
+  try {
+    return SpreadsheetApp.openById(ssId);
+  } catch (e) {
+    const label = featureName || key;
+    const errMsg = e && e.message ? e.message : e;
+    throw new Error(`Gagal membuka spreadsheet ${label} (key ${key} di ${CONFIG_SHEET_CANONICAL}): ${errMsg}`);
+  }
+}
+
+function getAbsensiSpreadsheet_() {
+  return getSpreadsheetFromConfig_('ABSENSI_SS_ID', 'Absensi');
+}
+
+function getWelfareSpreadsheet_() {
+  return getSpreadsheetFromConfig_('WELFARE_SS_ID', 'Kesejahteraan');
+}
+
+function getProjectSpreadsheet_() {
+  return getSpreadsheetFromConfig_('PROJECT_SS_ID', 'Progres Proyek');
+}
+
+/**
  * Validasi key penting (silakan tambah)
  */
 function validateHCISConfig() {
@@ -224,7 +264,10 @@ function validateHCISConfig() {
     'SESSION_TTL_SECONDS',
     'STARSENDER_URL',
     'STARSENDER_APIKEY',
-    'STARSENDER_MODE'
+    'STARSENDER_MODE',
+    'ABSENSI_SS_ID',
+    'WELFARE_SS_ID',
+    'PROJECT_SS_ID'
   ];
 
   const missing = [];
