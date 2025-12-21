@@ -4,7 +4,7 @@
  * Sheet Users memakai kolom:
  * - NIP
  * - PIN               (sekarang dipakai sebagai PASSWORD)
- * - WhatsApp          (format 08xxx atau 62xxx)
+ * - No_HP             (format 08xxx atau 62xxx)
  * - ResetPIN_OTP
  * - ResetPIN_ExpiredAt
  * - OTP_Attempt
@@ -29,13 +29,13 @@ function requestPasswordChange(oldPassword){
 
     const cNIP  = col_(h,'NIP');
     const cPASS = col_(h,'PIN'); // tetap pakai kolom PIN sebagai password
-    const cWA   = col_(h,'WhatsApp');
+    const cNoHP = col_(h,'No_HP');
     const cOTP  = col_(h,'ResetPIN_OTP');
     const cEXP  = col_(h,'ResetPIN_ExpiredAt');
     const cTRY  = col_(h,'OTP_Attempt');
 
     if (cNIP === -1 || cPASS === -1) return { ok:false, msg:'Header Users wajib punya NIP dan PIN' };
-    if (cWA === -1) return { ok:false, msg:'Kolom WhatsApp belum ada di Users' };
+    if (cNoHP === -1) return { ok:false, msg:'Kolom No_HP belum ada di Users' };
     if (cOTP === -1 || cEXP === -1 || cTRY === -1) return { ok:false, msg:'Kolom OTP (ResetPIN_*) belum lengkap di Users' };
 
     let rowIndex = -1; // sheet row number
@@ -53,11 +53,11 @@ function requestPasswordChange(oldPassword){
       return { ok:false, msg:'Password lama tidak sesuai' };
     }
 
-    const waRaw = String(row[cWA]||'').trim();
-    if(!waRaw) return { ok:false, msg:'Nomor WhatsApp belum terdaftar di Users' };
+    const noHpRaw = String(row[cNoHP]||'').trim();
+    if(!noHpRaw) return { ok:false, msg:'No_HP belum terdaftar di Users' };
 
-    const wa = normalizeWA_(waRaw);
-    if(!wa) return { ok:false, msg:'Format nomor WhatsApp tidak valid (harus 08xxx atau 62xxx)' };
+    const noHp = normalizeNoHP_(noHpRaw);
+    if(!noHp) return { ok:false, msg:'Format No_HP tidak valid (harus 08xxx atau 62xxx)' };
 
     const otp = generateOTP_();
     const expireAt = new Date(Date.now() + OTP_EXPIRE_MIN * 60000);
@@ -68,9 +68,9 @@ function requestPasswordChange(oldPassword){
     sh.getRange(rowIndex, cTRY+1).setValue(0);
 
     // kirim WA (Starsender)
-    sendWAOTP_(wa, otp);
+    sendWAOTP_(noHp, otp);
 
-    return { ok:true, msg:'Kode verifikasi dikirim ke WhatsApp' };
+    return { ok:true, msg:'Kode verifikasi dikirim ke No_HP' };
   }catch(e){
     // kalau Starsender error, kasih pesan lebih jelas
     const msg = String(e && e.message ? e.message : e);
@@ -246,7 +246,7 @@ function generateOTP_(){
 }
 
 // input: 08xxx / 62xxx → output 62xxx
-function normalizeWA_(no){
+function normalizeNoHP_(no){
   let n = String(no||'').trim();
   n = n.replace(/\s+/g,'').replace(/\D/g,''); // digits only
   if (n.startsWith('08')) return '62' + n.slice(1);
