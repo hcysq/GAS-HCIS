@@ -1,6 +1,6 @@
 <script>
 /**
- * Settings Wizard: Change Password with WA OTP
+ * Settings Wizard: Change Password with No_HP OTP
  * Depends on:
  * - escapeHtml() in app.html
  * - goto() in app.html
@@ -49,19 +49,19 @@ function renderChangePasswordCard_(){
   if (SETTINGS_STATE.step === 1) {
     stepHtml = `
       <div class="muted" style="margin-bottom:10px;">
-        Untuk mengganti password, masukkan <b>password lama</b> lalu kirim kode OTP ke WhatsApp.
+        Untuk mengganti password, masukkan <b>password lama</b> lalu kirim kode OTP ke No_HP.
       </div>
       <div style="margin-bottom:10px;">
         <input id="oldPass" type="password" placeholder="Password lama" autocomplete="current-password">
       </div>
-      <button class="btn primary" onclick="settingsSendOTP_()">Kirim Kode Verifikasi (WA)</button>
+      <button class="btn primary" onclick="settingsSendOTP_()">Kirim Kode Verifikasi (No_HP)</button>
     `;
   }
 
   if (SETTINGS_STATE.step === 2) {
     stepHtml = `
       <div class="muted" style="margin-bottom:10px;">
-        Masukkan <b>OTP 6 digit</b> yang dikirim ke WhatsApp. Berlaku 5 menit.
+        Masukkan <b>OTP 6 digit</b> yang dikirim ke No_HP. Berlaku 5 menit.
       </div>
       <div style="margin-bottom:10px;">
         <input id="otp" inputmode="numeric" placeholder="OTP (6 digit)" autocomplete="one-time-code">
@@ -124,7 +124,7 @@ function settingsSendOTP_(){
   const oldPass = document.getElementById('oldPass')?.value || '';
   if (!oldPass) return settingsSetMsg_('Password lama wajib diisi.', 'error');
 
-  settingsSetMsg_('Mengirim OTP ke WhatsApp…', 'info');
+  settingsSetMsg_('Mengirim OTP ke No_HP…', 'info');
 
   google.script.run.withSuccessHandler(res=>{
     if (!res || !res.ok){
@@ -133,7 +133,7 @@ function settingsSendOTP_(){
     }
     SETTINGS_STATE.step = 2;
     SETTINGS_STATE.lastOtpSentAt = new Date();
-    settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek WhatsApp.', 'success');
+    settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek No_HP.', 'success');
   }).requestPasswordChange(oldPass);
 }
 
