@@ -1,16 +1,15 @@
 /*************************************************
  * Config.gs - Single Source of Truth for HCIS
  * Canonical config sheet: "HCIS_Config" (Key, Value, Note)
+ * Sheet GID: 1743564124
  *
  * - ensureHCISConfigSheet_(): pastikan sheet & header
- * - migrateConfigToHCISConfig(): migrasi dari sheet lama "Config" jika ada
  * - cfgGet(key, default): ambil config (pakai cache)
  * - cfgSet(key, value, note): set config
  * - validateHCISConfig(): cek key penting
  *************************************************/
 
 const CONFIG_SHEET_CANONICAL = 'HCIS_Config';
-const CONFIG_SHEET_LEGACY = 'Config'; // jika masih ada
 
 // Cache key
 const _CFG_CACHE_KEY = 'HCIS_CFG_MAP_V1';
@@ -124,95 +123,6 @@ function _loadCfgMap_() {
   });
 
   return map;
-}
-
-/**
- * Migrasi dari sheet lama "Config" ke "HCIS_Config"
- * Support 2 format legacy:
- *  A) Key | Value | Note (kolom)
- *  B) Horizontal: row1 = keys, row2 = values (notes optional row3)
- *
- * Setelah migrasi: sheet Config lama di-rename jadi Config_OLD_YYYYMMDD_HHMMSS
- */
-function migrateConfigToHCISConfig() {
-  const ss = SpreadsheetApp.getActive();
-  const legacy = ss.getSheetByName(CONFIG_SHEET_LEGACY);
-  const canonical = ensureHCISConfigSheet_();
-
-  if (!legacy) {
-    return { ok: true, msg: `Sheet legacy "${CONFIG_SHEET_LEGACY}" tidak ada. Tidak ada yang dimigrasi.` };
-  }
-
-  // Baca legacy
-  const maxCols = Math.max(legacy.getLastColumn(), 1);
-  const maxRows = Math.max(legacy.getLastRow(), 1);
-  const values = legacy.getRange(1, 1, Math.min(maxRows, 20), maxCols).getValues(); // cukup 20 baris untuk deteksi format
-
-  // Deteksi format A: header Key|Value|Note
-  const h = values[0] || [];
-  const isKV =
-    String(h[0] || '').trim().toLowerCase() === 'key' &&
-    String(h[1] || '').trim().toLowerCase() === 'value';
-
-  let pairs = [];
-
-  if (isKV) {
-    // Format A: Key/Value per baris
-    const data = legacy.getDataRange().getValues();
-    data.shift(); // header
-    data.forEach(r => {
-      const k = String(r[0] || '').trim();
-      if (!k) return;
-      const v = r[1];
-      const note = r[2] || 'migrated from Config (KV)';
-      pairs.push([k, v, note]);
-    });
-  } else {
-    // Format B: horizontal (row1 keys, row2 values, row3 notes optional)
-    const keys = values[0] || [];
-    const vals = values[1] || [];
-    const notes = values[2] || [];
-
-    for (let c = 0; c < keys.length; c++) {
-      const k = String(keys[c] || '').trim();
-      if (!k) continue;
-
-      const v = vals[c];
-      const n = notes[c] || 'migrated from Config (horizontal)';
-      // skip kosong semua
-      if ((v === '' || v === null || v === undefined) && !n) continue;
-
-      pairs.push([k, v, n]);
-    }
-  }
-
-  // Ambil existing canonical map untuk avoid duplicate
-  const canonLast = canonical.getLastRow();
-  const canonRows = canonLast >= 2
-    ? canonical.getRange(2, 1, canonLast - 1, 3).getValues()
-    : [];
-  const existing = new Set(canonRows.map(r => String(r[0] || '').trim()).filter(Boolean));
-
-  const toAppend = [];
-  pairs.forEach(p => {
-    const k = String(p[0] || '').trim();
-    if (!k) return;
-    if (existing.has(k)) return; // jangan overwrite by default
-    toAppend.push(p);
-  });
-
-  if (toAppend.length) {
-    canonical.getRange(canonLast + 1, 1, toAppend.length, 3).setValues(toAppend);
-  }
-
-  // Rename legacy sheet supaya tidak dipakai lagi
-  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
-  legacy.setName(`Config_OLD_${stamp}`);
-
-  // clear cache
-  cfgClearCache();
-
-  return { ok: true, msg: `Migrasi selesai. Ditambah ${toAppend.length} key ke ${CONFIG_SHEET_CANONICAL}. Sheet lama di-rename.` };
 }
 
 /**
