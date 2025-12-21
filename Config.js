@@ -10,6 +10,8 @@
  *************************************************/
 
 const CONFIG_SHEET_CANONICAL = 'HCIS_Config';
+const CONFIG_SHEET_LEGACY = 'Config'; // jika masih ada
+const CONFIG_SHEET_GID = 1743564124; // GID tab HCIS_Config (untuk pesan error)
 
 // Cache key
 const _CFG_CACHE_KEY = 'HCIS_CFG_MAP_V1';
@@ -69,6 +71,19 @@ function cfgGetNumber(key, defaultValue) {
   return isNaN(n) ? defaultValue : n;
 }
 
+function cfgGetString(key, defaultValue) {
+  const v = cfgGet(key, defaultValue);
+  return String(v ?? '').trim();
+}
+
+function cfgRequireString(key) {
+  const v = cfgGetString(key, '');
+  if (!v) {
+    throw new Error(`${key} belum diisi di ${CONFIG_SHEET_CANONICAL} (GID ${CONFIG_SHEET_GID})`);
+  }
+  return v;
+}
+
 function cfgSet(key, value, note) {
   key = String(key || '').trim();
   if (!key) throw new Error('cfgSet: key kosong');
@@ -126,6 +141,121 @@ function _loadCfgMap_() {
 }
 
 /**
+ * Migrasi dari sheet lama "Config" ke "HCIS_Config"
+ * Support 2 format legacy:
+ *  A) Key | Value | Note (kolom)
+ *  B) Horizontal: row1 = keys, row2 = values (notes optional row3)
+ *
+ * Setelah migrasi: sheet Config lama di-rename jadi Config_OLD_YYYYMMDD_HHMMSS
+ */
+function migrateConfigToHCISConfig() {
+  const ss = SpreadsheetApp.getActive();
+  const legacy = ss.getSheetByName(CONFIG_SHEET_LEGACY);
+  const canonical = ensureHCISConfigSheet_();
+
+  if (!legacy) {
+    return { ok: true, msg: `Sheet legacy "${CONFIG_SHEET_LEGACY}" tidak ada. Tidak ada yang dimigrasi.` };
+  }
+
+  // Baca legacy
+  const maxCols = Math.max(legacy.getLastColumn(), 1);
+  const maxRows = Math.max(legacy.getLastRow(), 1);
+  const values = legacy.getRange(1, 1, Math.min(maxRows, 20), maxCols).getValues(); // cukup 20 baris untuk deteksi format
+
+  // Deteksi format A: header Key|Value|Note
+  const h = values[0] || [];
+  const isKV =
+    String(h[0] || '').trim().toLowerCase() === 'key' &&
+    String(h[1] || '').trim().toLowerCase() === 'value';
+
+  let pairs = [];
+
+  if (isKV) {
+    // Format A: Key/Value per baris
+    const data = legacy.getDataRange().getValues();
+    data.shift(); // header
+    data.forEach(r => {
+      const k = String(r[0] || '').trim();
+      if (!k) return;
+      const v = r[1];
+      const note = r[2] || 'migrated from Config (KV)';
+      pairs.push([k, v, note]);
+    });
+  } else {
+    // Format B: horizontal (row1 keys, row2 values, row3 notes optional)
+    const keys = values[0] || [];
+    const vals = values[1] || [];
+    const notes = values[2] || [];
+
+    for (let c = 0; c < keys.length; c++) {
+      const k = String(keys[c] || '').trim();
+      if (!k) continue;
+
+      const v = vals[c];
+      const n = notes[c] || 'migrated from Config (horizontal)';
+      // skip kosong semua
+      if ((v === '' || v === null || v === undefined) && !n) continue;
+
+      pairs.push([k, v, n]);
+    }
+  }
+
+  // Ambil existing canonical map untuk avoid duplicate
+  const canonLast = canonical.getLastRow();
+  const canonRows = canonLast >= 2
+    ? canonical.getRange(2, 1, canonLast - 1, 3).getValues()
+    : [];
+  const existing = new Set(canonRows.map(r => String(r[0] || '').trim()).filter(Boolean));
+
+  const toAppend = [];
+  pairs.forEach(p => {
+    const k = String(p[0] || '').trim();
+    if (!k) return;
+    if (existing.has(k)) return; // jangan overwrite by default
+    toAppend.push(p);
+  });
+
+  if (toAppend.length) {
+    canonical.getRange(canonLast + 1, 1, toAppend.length, 3).setValues(toAppend);
+  }
+
+  // Rename legacy sheet supaya tidak dipakai lagi
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  legacy.setName(`Config_OLD_${stamp}`);
+
+  // clear cache
+  cfgClearCache();
+
+  return { ok: true, msg: `Migrasi selesai. Ditambah ${toAppend.length} key ke ${CONFIG_SHEET_CANONICAL}. Sheet lama di-rename.` };
+}
+
+/**
+ * Helper untuk buka Spreadsheet lain berdasarkan konfigurasi ID di HCIS_Config
+ */
+function getSpreadsheetFromConfig_(key, featureName) {
+  const ssId = cfgRequireString(key);
+  try {
+    return SpreadsheetApp.openById(ssId);
+  } catch (e) {
+    const label = featureName || key;
+    const errMsg = e && e.message ? e.message : e;
+    throw new Error(`Gagal membuka spreadsheet ${label} (key ${key} di ${CONFIG_SHEET_CANONICAL}): ${errMsg}`);
+  }
+}
+
+function getAbsensiSpreadsheet_() {
+  return getSpreadsheetFromConfig_('ABSENSI_SS_ID', 'Absensi');
+}
+
+function getWelfareSpreadsheet_() {
+  return getSpreadsheetFromConfig_('WELFARE_SS_ID', 'Kesejahteraan');
+}
+
+function getProjectSpreadsheet_() {
+  return getSpreadsheetFromConfig_('PROJECT_SS_ID', 'Progres Proyek');
+}
+
+/**
  * Validasi key penting (silakan tambah)
  */
 function validateHCISConfig() {
@@ -134,7 +264,10 @@ function validateHCISConfig() {
     'SESSION_TTL_SECONDS',
     'STARSENDER_URL',
     'STARSENDER_APIKEY',
-    'STARSENDER_MODE'
+    'STARSENDER_MODE',
+    'ABSENSI_SS_ID',
+    'WELFARE_SS_ID',
+    'PROJECT_SS_ID'
   ];
 
   const missing = [];
