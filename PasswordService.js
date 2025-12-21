@@ -187,7 +187,8 @@ function updatePassword(newPass){
 function sendWAOTP_(waE164, otp){
   const url = cfgRequireString('STARSENDER_URL');
   const apiKey = cfgRequireString('STARSENDER_APIKEY');
-  const mode = cfgRequireString('STARSENDER_MODE').toLowerCase();
+  const modeRaw = cfgGet('STARSENDER_MODE', '');
+  const mode = String(modeRaw || '').trim().toLowerCase();
 
   // samakan format dengan script PPh
   // tujuan = 62xxxxxxxxxx (tanpa +)
@@ -199,22 +200,33 @@ function sendWAOTP_(waE164, otp){
     "Berlaku 5 menit.\n" +
     "Jangan bagikan kode ini kepada siapa pun.";
 
+  if (!mode) {
+    throw new Error('STARSENDER_MODE belum diisi di HCIS_Config. Isi dengan "bearer" atau "apikey" sesuai akun Starsender Anda.');
+  }
+
+  if (['bearer', 'apikey'].indexOf(mode) === -1) {
+    throw new Error('STARSENDER_MODE tidak valid. Gunakan "bearer" (Authorization header) atau "apikey" (api_key + device).');
+  }
+
   const headers = {};
+  const payload = {
+    tujuan: tujuan,
+    message: message
+  };
+
   if (mode === 'bearer') {
     headers.Authorization = `Bearer ${apiKey}`;
-  } else if (mode === 'apikey') {
-    headers.apikey = apiKey;
   } else {
-    throw new Error('STARSENDER_MODE tidak dikenali. Gunakan "bearer" atau "apikey".');
+    headers.apikey = apiKey;
+    payload.api_key = apiKey;
+    const device = String(cfgGet('STARSENDER_DEVICE', '') || '').trim();
+    if (device) payload.device = device;
   }
 
   const options = {
     method: 'post',
     headers,
-    payload: {
-      tujuan: tujuan,
-      message: message
-    },
+    payload,
     muteHttpExceptions: true
   };
 
