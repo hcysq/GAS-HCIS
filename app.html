@@ -175,20 +175,22 @@ function renderDashboard(){
 /* ===================== PROFIL (ATS friendly) ===================== */
 function renderProfil(){
   // skeleton: tetap tampilkan header agar UI tidak kosong saat data gagal dimuat
+  const defaultNotice = 'Profil dicari di Masterdata menggunakan USER_ID session serta NIP session untuk memastikan kecocokan.';
   renderProfilLayout_(null, 'Memuat data dari Masterdata…');
 
   google.script.run
     .withSuccessHandler(res=>{
+      const notice = res?.msg || defaultNotice;
       if(!res || !res.ok){
-        renderProfilLayout_(null, res?.msg || 'Gagal memuat profil. Pastikan NIP ada di Masterdata.');
+        renderProfilLayout_(null, notice);
         return;
       }
 
-      renderProfilLayout_(res.data || {}, '');
+      renderProfilLayout_(res.data || {}, notice);
     })
     .withFailureHandler(err=>{
-      const msg = err && err.message ? err.message : 'Gagal memuat profil. Pastikan NIP ada di Masterdata.';
-      renderProfilLayout_(null, msg);
+      const notice = (err && err.message) ? err.message : defaultNotice;
+      renderProfilLayout_(null, notice);
     })
     .getProfilMasterdataSaya();
 }
@@ -233,7 +235,7 @@ function renderProfilLayout_(data, notice){
 
   const noticeHtml = notice
     ? `<div class="muted" style="margin-top:6px;color:#ffb4b4;">${escapeHtml(notice)}</div>`
-    : '<div class="muted" style="margin-top:6px;">Profil ditarik dari Masterdata.</div>';
+    : '<div class="muted" style="margin-top:6px;">Profil dicari di Masterdata menggunakan USER_ID session serta NIP session untuk memastikan kecocokan.</div>';
 
   root.innerHTML = `
     <div class="card">
