@@ -66,6 +66,7 @@ function requestPasswordChange(oldPassword){
     sh.getRange(rowIndex, cOTP+1).setValue(otp);
     sh.getRange(rowIndex, cEXP+1).setValue(expireAt);
     sh.getRange(rowIndex, cTRY+1).setValue(0);
+    clearUsersCache_();
 
     // kirim WA (Starsender)
     sendWAOTP_(noHp, otp);
@@ -111,6 +112,7 @@ function verifyPasswordOTP(inputOTP){
     if(String(row[cOTP]||'').trim() !== String(inputOTP||'').trim()){
       const attempt = (Number(row[cTRY])||0) + 1;
       getSheet_(CFG.SHEET_USERS).getRange(rowIndex, cTRY+1).setValue(attempt);
+      clearUsersCache_();
 
       if(attempt >= OTP_MAX_ATTEMPT){
         clearOTP_(rowIndex,h);
@@ -166,6 +168,7 @@ function updatePassword(newPass){
 
     // bersihin OTP & logout
     clearOTP_(rowIndex, h);
+    clearUsersCache_();
     clearSession_();
 
     return { ok:true };
