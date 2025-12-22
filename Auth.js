@@ -1,5 +1,6 @@
 const _USERS_CACHE_KEY = 'HCIS_USERS_MAP_V1';
 const _USERS_CACHE_TTL = 60; // detik
+const _USERS_PASSWORD_CACHE_KEY = 'HCIS_USERS_PASSMAP_V1';
 
 /*************************************************
  * Authentication
@@ -87,7 +88,9 @@ function loadUsersMap_() {
 }
 
 function clearUsersCache_() {
-  CacheService.getScriptCache().remove(_USERS_CACHE_KEY);
+  const cache = CacheService.getScriptCache();
+  cache.remove(_USERS_CACHE_KEY);
+  cache.remove(_USERS_PASSWORD_CACHE_KEY);
 }
 
 function hashPin_(pin) {
