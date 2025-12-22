@@ -6,8 +6,10 @@ function getProfilMasterdataSaya() {
   try {
     const s = requireLogin_();
     const nipSession = String(s.nip || '').trim();
+    const userIdSession = String(s.userId || '').trim();
     const nipKey = normalizeNIP_(nipSession);
-    if (!nipKey) return { ok:false, msg:'Session NIP kosong. Coba logout lalu login ulang.' };
+    const userIdKey = userIdSession;
+    if (!nipKey && !userIdKey) return { ok:false, msg:'Session tidak memiliki NIP atau USER_ID. Coba logout lalu login ulang.' };
 
     // Pastikan sheet/tab Masterdata benar-benar ada (mendukung konfigurasi GID)
     const { sheet: sh, error: sheetErr } = getMasterdataSheet_();
@@ -20,21 +22,28 @@ function getProfilMasterdataSaya() {
     // Baca header (row 1)
     const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h||'').trim());
     const idxNip = findHeaderIndex_(headers, 'NIP'); // 0-based
-    if (idxNip < 0) return { ok:false, msg:'Header "NIP" tidak ditemukan di baris 1 sheet Masterdata.' };
+    const idxUserId = findHeaderIndex_(headers, 'USER_ID');
+    if (idxNip < 0 && idxUserId < 0) return { ok:false, msg:'Header "NIP" atau "USER_ID" tidak ditemukan di baris 1 sheet Masterdata.' };
 
     // Baca data rows (row 2..last)
     const rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
     for (const row of rows) {
-      const cellKey = normalizeNIP_(row[idxNip]);
-      if (cellKey && cellKey === nipKey) {
+      const nipCellKey = idxNip >= 0 ? normalizeNIP_(row[idxNip]) : '';
+      const userIdCell = idxUserId >= 0 ? String(row[idxUserId] || '').trim() : '';
+      const nipMatches = nipKey && nipCellKey && nipCellKey === nipKey;
+      const userIdMatches = userIdKey && userIdCell && userIdCell === userIdKey;
+
+      const userIdAllowed = userIdMatches && (!nipCellKey || !nipKey || nipCellKey === nipKey);
+
+      if (nipMatches || userIdAllowed) {
         const obj = {};
         headers.forEach((k, i) => obj[k] = row[i]);
         return { ok:true, data: obj };
       }
     }
 
-    return { ok:false, msg:`Profil tidak ketemu. NIP session=${nipSession} (key=${nipKey}). Cek apakah NIP di Masterdata benar-benar sama.` };
+    return { ok:false, msg:`Profil tidak ketemu. Pencarian memakai USER_ID session=${userIdSession || '-'} dan NIP session=${nipSession} (key=${nipKey}). Cek apakah data Masterdata sudah terisi.` };
 
   } catch (e) {
     return { ok:false, msg:`Error Profile: ${e && e.message ? e.message : e}` };
