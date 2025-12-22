@@ -171,92 +171,113 @@ function renderDashboard(){
 
 /* ===================== PROFIL (ATS friendly) ===================== */
 function renderProfil(){
-  // skeleton
+  // skeleton: tetap tampilkan header agar UI tidak kosong saat data gagal dimuat
+  renderProfilLayout_(null, 'Memuat data dari Masterdata…');
+
+  google.script.run
+    .withSuccessHandler(res=>{
+      if(!res || !res.ok){
+        renderProfilLayout_(null, res?.msg || 'Gagal memuat profil. Pastikan NIP ada di Masterdata.');
+        return;
+      }
+
+      renderProfilLayout_(res.data || {}, '');
+    })
+    .withFailureHandler(err=>{
+      const msg = err && err.message ? err.message : 'Gagal memuat profil. Pastikan NIP ada di Masterdata.';
+      renderProfilLayout_(null, msg);
+    })
+    .getProfilMasterdataSaya();
+}
+
+function renderProfilLayout_(data, notice){
+  const d = data || {};
+  const me = state.me || {};
+
+  const nama = pick_(d, ['NAMA','Nama']) || me.nama || '-';
+  const nip  = pick_(d, ['NIP']) || me.nip || '-';
+  const unit = pick_(d, ['UNIT','Unit']) || '-';
+  const jabatan = pick_(d, ['JABATAN','JABATAN STRUKTURAL','JABATAN FUNGSIONAL']) || '-';
+  const statusAktif = pick_(d, ['STATUS AKTIF','Status Aktif']) || '-';
+  const statusKepeg = pick_(d, ['STATUS KEPEGAWAIAN','JENIS KEPEGAWAIAN','Jenis Kepegawaian']) || '-';
+  const tmt = pick_(d, ['TMT']) || '-';
+  const golongan = pick_(d, ['GOLONGAN','Golongan','GOL. RUANG']) || '-';
+  const pangkat = pick_(d, ['PANGKAT','Pangkat']) || '-';
+  const lokasiKerja = pick_(d, ['LOKASI KERJA','Lokasi Kerja','KANTOR']) || '-';
+  const email = pick_(d, ['EMAIL','Email']) || me.email || '-';
+  const hp = pick_(d, ['NO HP','NO. HP','HP','No HP','No. HP']) || '-';
+
+  const tempatLahir = pick_(d, ['TEMPAT LAHIR','Tempat Lahir']) || '';
+  const tglLahir = pick_(d, ['TANGGAL LAHIR (TTTT-BB-HH)','TANGGAL LAHIR','Tanggal Lahir']) || '';
+  const ttl = [tempatLahir, tglLahir].filter(x => String(x||'').trim() !== '').join(', ') || '-';
+  const gender = pick_(d, ['JENIS KELAMIN','Jenis Kelamin','SEX']) || '-';
+  const agama = pick_(d, ['AGAMA','Agama']) || '-';
+  const statusNikah = pick_(d, ['STATUS PERNIKAHAN','Status Pernikahan','STATUS NIKAH']) || '-';
+
+  const pendidikan = pick_(d, ['PENDIDIKAN TERAKHIR','Pendidikan Terakhir']) || '-';
+  const alamatRingkas = [
+    pick_(d, ['KECAMATAN']),
+    pick_(d, ['KOTA/KABUPATEN','KOTA','KABUPATEN']),
+    pick_(d, ['KODE POS'])
+  ].filter(x => String(x||'').trim() !== '').join(', ') || '-';
+
+  const nikRaw = pick_(d, ['NIK']) || '';
+  const nikMasked = nikRaw ? maskNIK_(nikRaw) : '-';
+  const masaKerja = computeMasaKerja_(tmt);
+  const alamatLengkap = pick_(d, ['ALAMAT','Alamat','ALAMAT LENGKAP']) || '-';
+  const bpjsTk = pick_(d, ['BPJS KETENAGAKERJAAN','BPJS TK']) || '-';
+  const bpjsKes = pick_(d, ['BPJS KESEHATAN','BPJS KES']) || '-';
+
+  const noticeHtml = notice
+    ? `<div class="muted" style="margin-top:6px;color:#ffb4b4;">${escapeHtml(notice)}</div>`
+    : '<div class="muted" style="margin-top:6px;">Profil ditarik dari Masterdata.</div>';
+
   root.innerHTML = `
     <div class="card">
-      <div style="font-weight:900;font-size:18px;">Profil</div>
-      <div class="muted" style="margin-top:6px;">Memuat data dari Masterdata…</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:20px;font-weight:900;line-height:1.2;">${escapeHtml(nama)}</div>
+        <div class="muted" style="line-height:1.6;">
+          NIP: <b>${escapeHtml(nip)}</b> • Unit: <b>${escapeHtml(unit)}</b><br>
+          Jabatan: <b>${escapeHtml(jabatan)}</b>
+        </div>
+        ${noticeHtml}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Ringkasan Kepegawaian</div>
+      ${kv('Status aktif', statusAktif)}
+      ${kv('Status/jenis kepegawaian', statusKepeg)}
+      ${kv('TMT', tmt)}
+      ${kv('Golongan', golongan)}
+      ${kv('Pangkat', pangkat)}
+      ${kv('Lokasi kerja', lokasiKerja)}
+      ${kv('Masa kerja', masaKerja)}
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Kontak</div>
+      ${kv('Email', email)}
+      ${kv('No. HP', hp)}
+      ${kv('Alamat lengkap', alamatLengkap)}
+      ${kv('Domisili (ringkas)', alamatRingkas)}
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;">Data Pribadi</div>
+      ${kv('TTL', ttl)}
+      ${kv('Jenis kelamin', gender)}
+      ${kv('Agama', agama)}
+      ${kv('Status pernikahan', statusNikah)}
+      ${kv('Pendidikan terakhir', pendidikan)}
+      ${kv('NIK (mask)', nikMasked)}
+      ${kv('BPJS Ketenagakerjaan', bpjsTk)}
+      ${kv('BPJS Kesehatan', bpjsKes)}
+      <div class="muted" style="margin-top:10px;">
+        Catatan: detail sensitif (alamat lengkap/NIK full) sengaja tidak ditampilkan.
+      </div>
     </div>
   `;
-
-  google.script.run.withSuccessHandler(res=>{
-    if(!res || !res.ok){
-      root.innerHTML = `
-        <div class="card">
-          <div style="font-weight:900;font-size:18px;">Profil</div>
-          <div class="muted" style="margin-top:6px;">
-            ${escapeHtml(res?.msg || 'Gagal memuat profil. Pastikan NIP ada di Masterdata.')}
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const d = res.data || {};
-    const me = state.me || {};
-
-    const nama = pick_(d, ['NAMA','Nama']) || me.nama || '-';
-    const nip  = pick_(d, ['NIP']) || me.nip || '-';
-    const unit = pick_(d, ['UNIT','Unit']) || '-';
-    const jabatan = pick_(d, ['JABATAN','JABATAN STRUKTURAL','JABATAN FUNGSIONAL']) || '-';
-    const statusAktif = pick_(d, ['STATUS AKTIF','Status Aktif']) || '-';
-    const statusKepeg = pick_(d, ['STATUS KEPEGAWAIAN','JENIS KEPEGAWAIAN','Jenis Kepegawaian']) || '-';
-    const tmt = pick_(d, ['TMT']) || '-';
-    const email = pick_(d, ['EMAIL','Email']) || me.email || '-';
-    const hp = pick_(d, ['NO HP','NO. HP','HP','No HP','No. HP']) || '-';
-
-    const tempatLahir = pick_(d, ['TEMPAT LAHIR','Tempat Lahir']) || '';
-    const tglLahir = pick_(d, ['TANGGAL LAHIR (TTTT-BB-HH)','TANGGAL LAHIR','Tanggal Lahir']) || '';
-    const ttl = [tempatLahir, tglLahir].filter(x => String(x||'').trim() !== '').join(', ') || '-';
-
-    const pendidikan = pick_(d, ['PENDIDIKAN TERAKHIR','Pendidikan Terakhir']) || '-';
-    const alamatRingkas = [
-      pick_(d, ['KECAMATAN']),
-      pick_(d, ['KOTA/KABUPATEN','KOTA','KABUPATEN']),
-      pick_(d, ['KODE POS'])
-    ].filter(x => String(x||'').trim() !== '').join(', ') || '-';
-
-    const nikRaw = pick_(d, ['NIK']) || '';
-    const nikMasked = nikRaw ? maskNIK_(nikRaw) : '-';
-    const masaKerja = computeMasaKerja_(tmt);
-
-    root.innerHTML = `
-      <div class="card">
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <div style="font-size:20px;font-weight:900;line-height:1.2;">${escapeHtml(nama)}</div>
-          <div class="muted" style="line-height:1.6;">
-            NIP: <b>${escapeHtml(nip)}</b> • Unit: <b>${escapeHtml(unit)}</b><br>
-            Jabatan: <b>${escapeHtml(jabatan)}</b>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div style="font-weight:900;margin-bottom:10px;">Ringkasan Kepegawaian</div>
-        ${kv('Status aktif', statusAktif)}
-        ${kv('Status/jenis kepegawaian', statusKepeg)}
-        ${kv('TMT', tmt)}
-        ${kv('Masa kerja', masaKerja)}
-      </div>
-
-      <div class="card">
-        <div style="font-weight:900;margin-bottom:10px;">Kontak</div>
-        ${kv('Email', email)}
-        ${kv('No. HP', hp)}
-        ${kv('Domisili (ringkas)', alamatRingkas)}
-      </div>
-
-      <div class="card">
-        <div style="font-weight:900;margin-bottom:10px;">Data Pribadi</div>
-        ${kv('TTL', ttl)}
-        ${kv('Pendidikan terakhir', pendidikan)}
-        ${kv('NIK (mask)', nikMasked)}
-        <div class="muted" style="margin-top:10px;">
-          Catatan: detail sensitif (alamat lengkap/NIK full) sengaja tidak ditampilkan.
-        </div>
-      </div>
-    `;
-  }).getProfilMasterdataSaya();
 }
 
 /* ===================== PLACEHOLDER ===================== */

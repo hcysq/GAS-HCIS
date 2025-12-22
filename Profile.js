@@ -9,10 +9,9 @@ function getProfilMasterdataSaya() {
     const nipKey = normalizeNIP_(nipSession);
     if (!nipKey) return { ok:false, msg:'Session NIP kosong. Coba logout lalu login ulang.' };
 
-    // Pastikan sheet/tab Masterdata benar-benar ada
-    const ss = SpreadsheetApp.getActive();
-    const sh = ss.getSheetByName(CFG.SHEET_MASTERDATA);
-    if (!sh) return { ok:false, msg:`Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan.` };
+    // Pastikan sheet/tab Masterdata benar-benar ada (mendukung konfigurasi GID)
+    const { sheet: sh, error: sheetErr } = getMasterdataSheet_();
+    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Masterdata tidak ditemukan.' };
 
     const lastRow = sh.getLastRow();
     const lastCol = sh.getLastColumn();
@@ -52,9 +51,8 @@ function debugProfilMasterdataSaya() {
     const nipSession = String(s.nip || '').trim();
     const nipKey = normalizeNIP_(nipSession);
 
-    const ss = SpreadsheetApp.getActive();
-    const sh = ss.getSheetByName(CFG.SHEET_MASTERDATA);
-    if (!sh) return { ok:false, msg:`Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan.` };
+    const { sheet: sh, error: sheetErr } = getMasterdataSheet_();
+    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Masterdata tidak ditemukan.' };
 
     const lastRow = sh.getLastRow();
     const lastCol = sh.getLastColumn();
@@ -86,6 +84,39 @@ function debugProfilMasterdataSaya() {
 
   } catch (e) {
     return { ok:false, msg:`Error debugProfil: ${e && e.message ? e.message : e}` };
+  }
+}
+
+/**
+ * Ambil sheet Masterdata dengan prioritas GID (konfigurasi MASTERDATA_GID di HCIS_Config),
+ * fallback ke nama tab default dari CFG.SHEET_MASTERDATA.
+ */
+function getMasterdataSheet_() {
+  const { ss, error: ssErr } = getMasterdataSpreadsheet_();
+  if (!ss) return { sheet: null, error: ssErr };
+
+  const gidRaw = cfgGet('MASTERDATA_GID', '');
+  const gid = Number(gidRaw);
+  if (!isNaN(gid) && gid > 0) {
+    const targetById = ss.getSheets().find(sh => sh.getSheetId() === gid);
+    if (targetById) return { sheet: targetById };
+    return { sheet: null, error: `Sheet Masterdata dengan GID ${gid} tidak ditemukan pada spreadsheet yang dikonfigurasi. Cek MASTERDATA_GID di HCIS_Config.` };
+  }
+
+  const sh = ss.getSheetByName(CFG.SHEET_MASTERDATA);
+  if (sh) return { sheet: sh };
+  return { sheet: null, error: `Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan pada spreadsheet Masterdata.` };
+}
+
+function getMasterdataSpreadsheet_() {
+  const ssId = cfgGetString('MASTERDATA_SS_ID', '');
+  if (!ssId) return { ss: SpreadsheetApp.getActive() };
+
+  try {
+    return { ss: SpreadsheetApp.openById(ssId) };
+  } catch (e) {
+    const errMsg = e && e.message ? e.message : e;
+    return { ss: null, error: `Gagal membuka spreadsheet Masterdata (MASTERDATA_SS_ID di HCIS_Config): ${errMsg}` };
   }
 }
 
