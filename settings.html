@@ -17,6 +17,13 @@ const SETTINGS_STATE = {
   lastOtpSentAt: null,
 };
 
+function settingsResetState_(){
+  SETTINGS_STATE.step = 1;
+  SETTINGS_STATE.msg = '';
+  SETTINGS_STATE.msgType = 'info';
+  SETTINGS_STATE.lastOtpSentAt = null;
+}
+
 function renderSettings(){
   // wrapper
   root.innerHTML = `
@@ -178,6 +185,7 @@ function settingsUpdatePassword_(){
       settingsSetMsg_(res?.msg || 'Gagal mengganti password.', 'error');
       return;
     }
+    settingsResetState_();
     // backend menghapus session → kita arahkan kembali ke login
     state.me = null;
     state.route = 'login';

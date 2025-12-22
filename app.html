@@ -87,7 +87,10 @@ function renderRoute(route){
 
   if(route==='dash') return renderDashboard();
   if(route==='profil') return renderProfil();
-  if(route==='settings') return renderSettings(); // <- dari settings.html
+  if(route==='settings'){
+    if (typeof settingsResetState_ === 'function') settingsResetState_();
+    return renderSettings(); // <- dari settings.html
+  }
 
   // placeholders modul
   if(route==='projects') return renderPlaceholder_('Progres Proyek');
@@ -297,6 +300,7 @@ function login(){
 }
 function logout(){
   google.script.run.withSuccessHandler(()=>{
+    if (typeof settingsResetState_ === 'function') settingsResetState_();
     state.me=null;
     state.route='login';
     renderLogin('Anda sudah keluar.');
