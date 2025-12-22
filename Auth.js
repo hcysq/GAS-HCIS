@@ -23,7 +23,8 @@ function authLogin(nip, pin) {
     nip,
     nama: user.nama,
     role: user.role,
-    email: user.email
+    email: user.email,
+    userId: user.userId
   });
   return { ok:true };
 }
@@ -60,6 +61,7 @@ function loadUsersMap_() {
   const cNama = col_(h, 'Nama');
   const cRole = col_(h, 'Role');
   const cEmail = col_(h, 'Email');
+  const cUserId = col_(h, 'USER_ID');
 
   if (cNIP === -1 || cPIN === -1) {
     throw new Error('Header Users wajib punya NIP dan PIN');
@@ -75,7 +77,8 @@ function loadUsersMap_() {
       aktif: cAktif === -1 ? true : isTrue_(row[cAktif]),
       nama: row[cNama] || '',
       role: row[cRole] || 'PTK',
-      email: row[cEmail] || ''
+      email: row[cEmail] || '',
+      userId: cUserId === -1 ? '' : txt(row[cUserId])
     };
   }
 

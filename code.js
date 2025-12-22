@@ -16,7 +16,8 @@ const CFG = {
     nip: 'HCIS_NIP',
     nama: 'HCIS_NAMA',
     role: 'HCIS_ROLE',
-    email: 'HCIS_EMAIL'
+    email: 'HCIS_EMAIL',
+    userId: 'HCIS_USER_ID'
   }
 };
 

@@ -19,6 +19,7 @@ function setSession_(user) {
   up.setProperty(CFG.UP_KEYS.nama, user.nama || '');
   up.setProperty(CFG.UP_KEYS.role, user.role || 'PTK');
   up.setProperty(CFG.UP_KEYS.email, user.email || '');
+  up.setProperty(CFG.UP_KEYS.userId, user.userId || '');
 }
 
 function clearSession_() {
@@ -38,7 +39,8 @@ function getSession_() {
     nip,
     nama: up.getProperty(CFG.UP_KEYS.nama),
     role: up.getProperty(CFG.UP_KEYS.role),
-    email: up.getProperty(CFG.UP_KEYS.email)
+    email: up.getProperty(CFG.UP_KEYS.email),
+    userId: up.getProperty(CFG.UP_KEYS.userId)
   };
 }
 
