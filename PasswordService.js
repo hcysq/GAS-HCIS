@@ -13,47 +13,33 @@
 
 const OTP_EXPIRE_MIN = 5;
 const OTP_MAX_ATTEMPT = 3;
+const OTP_CACHE_TTL = 30; // detik
 
 /* ===================== PUBLIC API ===================== */
 
 // STEP 1: Request OTP (cek password lama)
 function requestPasswordChange(oldPassword){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(30000)){
+    return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
+  }
+
   try{
     const s = requireLogin_();
     const nip = String(s.nip || '').trim();
     if (!nip) return { ok:false, msg:'Session habis. Silakan login ulang.' };
 
-    const t = readTable_(CFG.SHEET_USERS);
-    const h = t.headers;
-    const r = t.rows;
+    const ctx = loadUsersPasswordMap_();
+    const cols = ctx.cols;
+    const user = ctx.map[nip];
 
-    const cNIP  = col_(h,'NIP');
-    const cPASS = col_(h,'PIN'); // tetap pakai kolom PIN sebagai password
-    const cNoHP = col_(h,'No_HP');
-    const cOTP  = col_(h,'ResetPIN_OTP');
-    const cEXP  = col_(h,'ResetPIN_ExpiredAt');
-    const cTRY  = col_(h,'OTP_Attempt');
+    if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
-    if (cNIP === -1 || cPASS === -1) return { ok:false, msg:'Header Users wajib punya NIP dan PIN' };
-    if (cNoHP === -1) return { ok:false, msg:'Kolom No_HP belum ada di Users' };
-    if (cOTP === -1 || cEXP === -1 || cTRY === -1) return { ok:false, msg:'Kolom OTP (ResetPIN_*) belum lengkap di Users' };
-
-    let rowIndex = -1; // sheet row number
-    let row = null;
-
-    r.forEach((rw,i)=>{
-      if (String(rw[cNIP]||'').trim() === nip){
-        rowIndex = i + 2; // + header row
-        row = rw;
-      }
-    });
-    if(!row) return { ok:false, msg:'User tidak ditemukan' };
-
-    if(String(row[cPASS]||'').trim() !== String(oldPassword||'').trim()){
+    if(String(user.pass||'').trim() !== String(oldPassword||'').trim()){
       return { ok:false, msg:'Password lama tidak sesuai' };
     }
 
-    const noHpRaw = String(row[cNoHP]||'').trim();
+    const noHpRaw = String(user.noHp||'').trim();
     if(!noHpRaw) return { ok:false, msg:'No_HP belum terdaftar di Users' };
 
     const noHp = normalizeNoHP_(noHpRaw);
@@ -62,10 +48,11 @@ function requestPasswordChange(oldPassword){
     const otp = generateOTP_();
     const expireAt = new Date(Date.now() + OTP_EXPIRE_MIN * 60000);
 
-    const sh = getSheet_(CFG.SHEET_USERS);
-    sh.getRange(rowIndex, cOTP+1).setValue(otp);
-    sh.getRange(rowIndex, cEXP+1).setValue(expireAt);
-    sh.getRange(rowIndex, cTRY+1).setValue(0);
+    updateUserRow_(user.rowIndex, (row)=>{
+      row[cols.cOTP] = otp;
+      row[cols.cEXP] = expireAt;
+      row[cols.cTRY] = 0;
+    });
     clearUsersCache_();
 
     // kirim WA (Starsender)
@@ -76,46 +63,43 @@ function requestPasswordChange(oldPassword){
     // kalau Starsender error, kasih pesan lebih jelas
     const msg = String(e && e.message ? e.message : e);
     return { ok:false, msg:`Gagal mengirim OTP: ${msg}` };
+  }finally{
+    lock.releaseLock();
   }
 }
 
 // STEP 2: Verifikasi OTP
 function verifyPasswordOTP(inputOTP){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(30000)){
+    return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
+  }
+
   try{
     const s = requireLogin_();
     const nip = String(s.nip || '').trim();
 
-    const t = readTable_(CFG.SHEET_USERS);
-    const h = t.headers;
-    const r = t.rows;
+    const ctx = loadUsersPasswordMap_();
+    const cols = ctx.cols;
+    const user = ctx.map[nip];
+    if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
-    const cNIP = col_(h,'NIP');
-    const cOTP = col_(h,'ResetPIN_OTP');
-    const cEXP = col_(h,'ResetPIN_ExpiredAt');
-    const cTRY = col_(h,'OTP_Attempt');
-
-    let rowIndex = -1;
-    let row = null;
-    r.forEach((rw,i)=>{
-      if (String(rw[cNIP]||'').trim() === nip){
-        rowIndex = i + 2;
-        row = rw;
-      }
-    });
-    if(!row) return { ok:false, msg:'User tidak ditemukan' };
-
-    const exp = row[cEXP];
+    const exp = user.exp;
     if (!exp || new Date(exp) < new Date()){
       return { ok:false, msg:'Kode OTP sudah kedaluwarsa. Silakan kirim ulang.' };
     }
 
-    if(String(row[cOTP]||'').trim() !== String(inputOTP||'').trim()){
-      const attempt = (Number(row[cTRY])||0) + 1;
-      getSheet_(CFG.SHEET_USERS).getRange(rowIndex, cTRY+1).setValue(attempt);
+    if(String(user.otp||'').trim() !== String(inputOTP||'').trim()){
+      const attempt = (Number(user.attempt)||0) + 1;
+      updateUserRow_(user.rowIndex, (row)=>{
+        row[cols.cTRY] = attempt;
+        if(attempt >= OTP_MAX_ATTEMPT){
+          clearOTPRow_(row, cols);
+        }
+      });
       clearUsersCache_();
 
       if(attempt >= OTP_MAX_ATTEMPT){
-        clearOTP_(rowIndex,h);
         return { ok:false, msg:'OTP salah terlalu banyak. Silakan kirim ulang.' };
       }
       return { ok:false, msg:'OTP tidak sesuai' };
@@ -124,11 +108,18 @@ function verifyPasswordOTP(inputOTP){
     return { ok:true };
   }catch(e){
     return { ok:false, msg:'Verifikasi gagal' };
+  }finally{
+    lock.releaseLock();
   }
 }
 
 // STEP 3: Set password baru
 function updatePassword(newPass){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(30000)){
+    return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
+  }
+
   try{
     const s = requireLogin_();
     const nip = String(s.nip || '').trim();
@@ -137,43 +128,31 @@ function updatePassword(newPass){
       return { ok:false, msg:'Password tidak memenuhi aturan: min 8, ada huruf besar, angka, simbol.' };
     }
 
-    const t = readTable_(CFG.SHEET_USERS);
-    const h = t.headers;
-    const r = t.rows;
+    const ctx = loadUsersPasswordMap_();
+    const cols = ctx.cols;
+    const user = ctx.map[nip];
+    if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
-    const cNIP  = col_(h,'NIP');
-    const cPASS = col_(h,'PIN');
-    const cCHG  = col_(h,'PIN_LastChangedAt');
-
-    let rowIndex = -1;
-    let row = null;
-    r.forEach((rw,i)=>{
-      if (String(rw[cNIP]||'').trim() === nip){
-        rowIndex = i + 2;
-        row = rw;
-      }
-    });
-    if(!row) return { ok:false, msg:'User tidak ditemukan' };
-
-    if(String(row[cPASS]||'').trim() === String(newPass||'').trim()){
+    if(String(user.pass||'').trim() === String(newPass||'').trim()){
       return { ok:false, msg:'Password baru tidak boleh sama dengan password lama' };
     }
 
-    const sh = getSheet_(CFG.SHEET_USERS);
-    sh.getRange(rowIndex, cPASS+1).setValue(String(newPass));
+    updateUserRow_(user.rowIndex, (row)=>{
+      row[cols.cPASS] = String(newPass);
+      if(cols.cCHG !== -1){
+        row[cols.cCHG] = new Date();
+      }
+      clearOTPRow_(row, cols);
+    });
 
-    if(cCHG !== -1){
-      sh.getRange(rowIndex, cCHG+1).setValue(new Date());
-    }
-
-    // bersihin OTP & logout
-    clearOTP_(rowIndex, h);
     clearUsersCache_();
     clearSession_();
 
     return { ok:true };
   }catch(e){
     return { ok:false, msg:'Gagal mengganti password' };
+  }finally{
+    lock.releaseLock();
   }
 }
 
@@ -285,11 +264,76 @@ function validatePassword_(p){
 }
 
 function clearOTP_(rowIndex, headers){
-  const sh = getSheet_(CFG.SHEET_USERS);
-  ['ResetPIN_OTP','ResetPIN_ExpiredAt','OTP_Attempt'].forEach(k=>{
-    const c = col_(headers,k);
-    if(c !== -1) sh.getRange(rowIndex, c+1).setValue('');
+  const cols = {
+    cOTP: col_(headers, 'ResetPIN_OTP'),
+    cEXP: col_(headers, 'ResetPIN_ExpiredAt'),
+    cTRY: col_(headers, 'OTP_Attempt'),
+  };
+  updateUserRow_(rowIndex, (row) => clearOTPRow_(row, cols));
+}
+
+function loadUsersPasswordMap_(){
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(_USERS_PASSWORD_CACHE_KEY);
+  if(cached){
+    try{
+      return JSON.parse(cached);
+    }catch(_){
+      // ignore
+    }
+  }
+
+  const t = readTable_(CFG.SHEET_USERS);
+  const h = t.headers;
+  const r = t.rows;
+
+  const cols = {
+    cNIP: col_(h,'NIP'),
+    cPASS: col_(h,'PIN'),
+    cNoHP: col_(h,'No_HP'),
+    cOTP: col_(h,'ResetPIN_OTP'),
+    cEXP: col_(h,'ResetPIN_ExpiredAt'),
+    cTRY: col_(h,'OTP_Attempt'),
+    cCHG: col_(h,'PIN_LastChangedAt'),
+  };
+
+  if (cols.cNIP === -1 || cols.cPASS === -1) throw new Error('Header Users wajib punya NIP dan PIN');
+  if (cols.cNoHP === -1) throw new Error('Kolom No_HP belum ada di Users');
+  if (cols.cOTP === -1 || cols.cEXP === -1 || cols.cTRY === -1) throw new Error('Kolom OTP (ResetPIN_*) belum lengkap di Users');
+
+  const map = {};
+  r.forEach((rw,i)=>{
+    const nip = String(rw[cols.cNIP]||'').trim();
+    if(!nip) return;
+    map[nip] = {
+      rowIndex: i + 2,
+      pass: rw[cols.cPASS],
+      noHp: rw[cols.cNoHP] || '',
+      otp: cols.cOTP === -1 ? '' : rw[cols.cOTP],
+      exp: cols.cEXP === -1 ? '' : rw[cols.cEXP],
+      attempt: cols.cTRY === -1 ? 0 : (Number(rw[cols.cTRY])||0)
+    };
   });
+
+  const payload = { map, cols };
+  cache.put(_USERS_PASSWORD_CACHE_KEY, JSON.stringify(payload), OTP_CACHE_TTL);
+  return payload;
+}
+
+function updateUserRow_(rowIndex, mutator){
+  const sh = getSheet_(CFG.SHEET_USERS);
+  const lastCol = sh.getLastColumn();
+  const range = sh.getRange(rowIndex, 1, 1, lastCol);
+  const values = range.getValues();
+  const row = values[0];
+  mutator(row);
+  range.setValues([row]);
+}
+
+function clearOTPRow_(row, cols){
+  if(cols.cOTP !== -1) row[cols.cOTP] = '';
+  if(cols.cEXP !== -1) row[cols.cEXP] = '';
+  if(cols.cTRY !== -1) row[cols.cTRY] = '';
 }
 
 
