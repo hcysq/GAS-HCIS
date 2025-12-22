@@ -51,6 +51,10 @@ function cfgGet(key, defaultValue) {
     try {
       const map = JSON.parse(cached);
       if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+      // Key baru mungkin belum tercache -> muat ulang supaya perubahan langsung terbaca
+      const fresh = _loadCfgMap_();
+      cache.put(_CFG_CACHE_KEY, JSON.stringify(fresh), _CFG_CACHE_TTL);
+      if (Object.prototype.hasOwnProperty.call(fresh, key)) return fresh[key];
       return defaultValue;
     } catch (e) {
       // lanjut load ulang
