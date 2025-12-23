@@ -7,6 +7,7 @@ function getProfilMasterdataSaya() {
     const s = requireLogin_();
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
+    const emailSession = String(s.email || '').trim();
     const nipKey = normalizeNIP_(nipSession);
     const userIdKey = userIdSession;
     if (!nipKey && !userIdKey) return { ok:false, msg:'Session tidak memiliki NIP atau USER_ID. Coba logout lalu login ulang.' };
@@ -21,33 +22,195 @@ function getProfilMasterdataSaya() {
 
     // Baca header (row 1)
     const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h||'').trim());
-    const idxNip = findHeaderIndex_(headers, 'NIP'); // 0-based
-    const idxUserId = findHeaderIndex_(headers, 'USER_ID');
-    if (idxNip < 0 && idxUserId < 0) return { ok:false, msg:'Header "NIP" atau "USER_ID" tidak ditemukan di baris 1 sheet Masterdata.' };
+    const headerMap = buildHeaderMap_(headers);
+    const idxNip = findHeaderIdx_(headerMap, ['NIP']); // 0-based
+    const idxUserId = findHeaderIdx_(headerMap, ['USER_ID']);
+    const idxEmail = findHeaderIdx_(headerMap, ['Email', 'EMAIL']);
+    if (idxNip < 0 && idxUserId < 0 && idxEmail < 0) return { ok:false, msg:'Header "NIP", "USER_ID", atau "Email" tidak ditemukan di baris 1 sheet Masterdata.' };
 
     // Baca data rows (row 2..last)
     const rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    let matchedRow = null;
 
     for (const row of rows) {
       const nipCellKey = idxNip >= 0 ? normalizeNIP_(row[idxNip]) : '';
       const userIdCell = idxUserId >= 0 ? String(row[idxUserId] || '').trim() : '';
-      const nipMatches = nipKey && nipCellKey && nipCellKey === nipKey;
-      const userIdMatches = userIdKey && userIdCell && userIdCell === userIdKey;
+      const emailCell = idxEmail >= 0 ? String(row[idxEmail] || '').trim() : '';
 
-      const userIdAllowed = userIdMatches && (!nipCellKey || !nipKey || nipCellKey === nipKey);
-
-      if (nipMatches || userIdAllowed) {
-        const obj = {};
-        headers.forEach((k, i) => obj[k] = row[i]);
-        return { ok:true, data: obj };
-      }
+      if (nipKey && nipCellKey && nipCellKey === nipKey) { matchedRow = row; break; }
+      if (!matchedRow && userIdKey && userIdCell && userIdCell === userIdKey) { matchedRow = row; break; }
+      if (!matchedRow && emailSession && emailCell && emailCell.toLowerCase() === emailSession.toLowerCase()) { matchedRow = row; break; }
     }
 
-    return { ok:false, msg:`Profil tidak ketemu. Pencarian memakai USER_ID session=${userIdSession || '-'} dan NIP session=${nipSession} (key=${nipKey}). Cek apakah data Masterdata sudah terisi.` };
+    if (matchedRow) {
+      const data = buildMasterdataPayload_(matchedRow, headers, headerMap);
+      return { ok:true, data };
+    }
+
+    return { ok:false, msg:`Profil tidak ketemu. Pencarian memakai USER_ID session=${userIdSession || '-'}, NIP session=${nipSession} (key=${nipKey}), dan Email session=${emailSession || '-'}. Cek apakah data Masterdata sudah terisi.` };
 
   } catch (e) {
     return { ok:false, msg:`Error Profile: ${e && e.message ? e.message : e}` };
   }
+}
+
+function buildMasterdataPayload_(row, headers, headerMap) {
+  const getRaw = (names) => pickCell_(row, headerMap, Array.isArray(names) ? names : [names]);
+  const getText = (names) => txt(getRaw(names));
+  const sanitizeValue_ = (val) => {
+    const t = txt(val);
+    return t ? t : '-';
+  };
+  const sanitize = (names) => sanitizeValue_(getRaw(names));
+  const hasContent = (val) => Boolean(txt(val));
+
+  const tmtRaw = getRaw(['TMT', 'TMT MASUK', 'TMT_MASUK', 'TMT KERJA']);
+  const tmtStr = sanitizeValue_(formatDateLocal_(tmtRaw));
+  const masaKerja = computeMasaKerjaFromDate_(tmtRaw);
+
+  const ttlField = getText(['TTL']);
+  const ttl = ttlField
+    || (() => {
+      const tempat = getText(['Tempat_Lahir', 'TEMPAT LAHIR', 'Tempat Lahir', 'TEMPAT_LAHIR']);
+      const tanggal = formatDateLocal_(getRaw(['Tanggal_Lahir', 'TANGGAL LAHIR', 'Tgl Lahir', 'TANGGAL_LAHIR', 'TGL LAHIR', 'TGL_LAHIR', 'DOB']));
+      const parts = [tempat, tanggal].filter(hasContent);
+      return parts.length ? parts.join(', ') : '';
+    })();
+
+  const hpVal = getText(['No_HP', 'HP', 'NO HP', 'NO. HP', 'NO_HP']);
+  const waVal = getText(['WhatsApp', 'WA', 'No_WA', 'WA_Number', 'NO WA', 'WHATSAPP']);
+
+  const buildEmergency = () => ({
+    nama: sanitizeValue_(getText(['Darurat_Nama', 'KontakDarurat_Nama', 'KONTAK DARURAT', 'KONTAK DARURAT NAMA', 'KONTAK_DARURAT_NAMA'])),
+    hp: sanitizeValue_(getText(['Darurat_HP', 'KontakDarurat_HP', 'Darurat_WA', 'KONTAK DARURAT HP', 'KONTAK_DARURAT_HP', 'HP DARURAT'])),
+    hubungan: sanitizeValue_(getText(['Darurat_Hubungan', 'KontakDarurat_Hubungan', 'KONTAK DARURAT HUBUNGAN', 'KONTAK_DARURAT_HUBUNGAN']))
+  });
+
+  return {
+    summary: {
+      nama: sanitize(['Nama', 'NAMA']),
+      nip: sanitize(['NIP']),
+      jabatan: sanitize(['JABATAN', 'JABATAN STRUKTURAL', 'JABATAN FUNGSIONAL', 'Jabatan']),
+      unit: sanitize(['UNIT', 'Unit', 'UNIT KERJA', 'Unit Kerja']),
+      status_kepeg: sanitize(['Status_Kepeg', 'Status Kepeg', 'STATUS KEPEGAWAIAN', 'STATUS_KEPEGAWAIAN']),
+      tmt: tmtStr || '-',
+      masa_kerja: masaKerja || '-'
+    },
+    contact: {
+      hp: sanitizeValue_(hpVal),
+      wa: sanitizeValue_(waVal || hpVal),
+      email: sanitize(['Email', 'EMAIL']),
+      alamat_ktp: sanitize(['Alamat_KTP', 'ALAMAT KTP', 'Alamat KTP']),
+      domisili: sanitize(['Alamat_Domisili', 'DOMISILI', 'Alamat Domisili', 'ALAMAT DOMISILI']),
+      alamat_detail: sanitize(['Alamat_Detail', 'Alamat Detail', 'Alamat Domisili Detail', 'Alamat Lengkap']),
+      kecamatan: sanitize(['Kecamatan_Domisili', 'Kecamatan', 'KECAMATAN']),
+      kab_kota: sanitize(['Kab_Kota_Domisili', 'Kab_Kota', 'KAB/KOTA', 'KABUPATEN/KOTA', 'Kota', 'KABUPATEN']),
+      darurat: buildEmergency()
+    },
+    personal: {
+      nik: sanitize(['NIK']),
+      ttl: sanitizeValue_(ttl),
+      gender: sanitize(['Gender', 'Jenis_Kelamin', 'Jenis Kelamin', 'GENDER', 'JK', 'JENIS KELAMIN']),
+      status_nikah: sanitize(['Status_Nikah', 'Status Nikah', 'STATUS NIKAH', 'STATUS PERNIKAHAN']),
+      bpjs_kes: sanitize(['BPJS_Kes', 'BPJS KESEHATAN', 'BPJS_KES']),
+      bpjs_tk: sanitize(['BPJS_TK', 'BPJS Ketenagakerjaan', 'BPJS KETENAGAKERJAAN', 'BPJSTK']),
+      pendidikan_terakhir: sanitize(['Pendidikan_Terakhir', 'Pend_Terakhir', 'Pendidikan Terakhir']),
+      pendidikan_str: sanitize(['Pendidikan_Terakhir', 'Pend_Terakhir', 'Pendidikan Terakhir'])
+    },
+    edu_formal: buildFormalEduDynamic_(row, headers),
+    edu_nonformal: buildNonFormalEduDynamic_(row, headers)
+  };
+}
+
+function buildFormalEduDynamic_(row, headers) {
+  const groups = {};
+  const order = [];
+  const hasContent = (v) => Boolean(txt(v));
+  const sanitizeValue_ = (val) => {
+    const t = txt(val);
+    return t ? t : '-';
+  };
+
+  headers.forEach((h, idx) => {
+    const header = String(h || '').trim();
+    const lower = header.toLowerCase();
+    if (!lower.startsWith('pend_')) return;
+
+    const remainder = header.substring(5);
+    if (!remainder) return;
+
+    const parts = remainder.split('_');
+    const key = parts.shift();
+    if (!key) return;
+    const fieldKey = parts.join('_') || 'nama';
+
+    if (!groups[key]) {
+      groups[key] = { level: key, nama: '-', jur: '-', thn: '-', link: '-' };
+      order.push(key);
+    }
+
+    const normalizedField = normalizeEduField_(fieldKey, true);
+    const val = sanitizeValue_(row[idx]);
+
+    if (normalizedField === 'jur') groups[key].jur = val;
+    else if (normalizedField === 'thn') groups[key].thn = val;
+    else if (normalizedField === 'link') groups[key].link = val;
+    else groups[key].nama = val;
+  });
+
+  return order
+    .map(k => groups[k])
+    .filter(g => hasContent(g.nama));
+}
+
+function buildNonFormalEduDynamic_(row, headers) {
+  const groups = {};
+  const order = [];
+  const hasContent = (v) => Boolean(txt(v));
+  const sanitizeValue_ = (val) => {
+    const t = txt(val);
+    return t ? t : '-';
+  };
+
+  headers.forEach((h, idx) => {
+    const header = String(h || '').trim();
+    const lower = header.toLowerCase();
+    if (!lower.startsWith('nonformal_')) return;
+
+    const remainder = header.substring('nonformal_'.length);
+    if (!remainder) return;
+
+    const parts = remainder.split('_');
+    const key = parts.shift();
+    if (!key) return;
+    const fieldKey = parts.join('_') || 'nama';
+
+    if (!groups[key]) {
+      groups[key] = { nama: '-', prog: '-', thn: '-', link: '-' };
+      order.push(key);
+    }
+
+    const normalizedField = normalizeEduField_(fieldKey, false);
+    const val = sanitizeValue_(row[idx]);
+
+    if (normalizedField === 'prog') groups[key].prog = val;
+    else if (normalizedField === 'thn') groups[key].thn = val;
+    else if (normalizedField === 'link') groups[key].link = val;
+    else groups[key].nama = val;
+  });
+
+  return order
+    .map(k => groups[k])
+    .filter(g => hasContent(g.nama));
+}
+
+function normalizeEduField_(fieldKey, isFormal) {
+  const f = String(fieldKey || '').toLowerCase();
+  if (f.includes('jur')) return 'jur';
+  if (f.includes('thn') || f.includes('tahun') || f === 'th') return 'thn';
+  if (f.includes('link') || f.includes('url') || f.includes('ijazah')) return 'link';
+  if (!isFormal && (f.includes('prog') || f.includes('program'))) return 'prog';
+  return 'nama';
 }
 
 /**
