@@ -172,120 +172,113 @@ function renderDashboard(){
   }).getProfilMasterdataSaya();
 }
 
-/* ===================== PROFIL (ATS friendly) ===================== */
-const PROFIL_DEFAULT_NOTICE = 'Profil dicari di Masterdata menggunakan USER_ID session dan NIP session; keduanya dicek untuk memastikan kecocokan.';
 
+/* ===================== PROFIL BARU ===================== */
 function renderProfil(){
-  // skeleton: tetap tampilkan header agar UI tidak kosong saat data gagal dimuat
-  renderProfilLayout_(null, 'Memuat data dari Masterdata…');
-
+  root.innerHTML = '<div class="card"><div class="muted">Memuat profil lengkap...</div></div>';
+  
   google.script.run
-    .withSuccessHandler(res=>{
-      const notice = res?.msg || PROFIL_DEFAULT_NOTICE;
-      if(!res || !res.ok){
-        renderProfilLayout_(null, notice);
+    .withSuccessHandler(res => {
+      if(!res || !res.ok) {
+        root.innerHTML = `<div class="card"><div style="color:red">Gagal: ${res?.msg || 'Unknown error'}</div></div>`;
         return;
       }
-
-      renderProfilLayout_(res.data || {}, notice);
-    })
-    .withFailureHandler(err=>{
-      const notice = (err && err.message) ? err.message : PROFIL_DEFAULT_NOTICE;
-      renderProfilLayout_(null, notice);
+      renderProfilV2(res.data);
     })
     .getProfilMasterdataSaya();
 }
 
-function renderProfilLayout_(data, notice){
-  const d = data || {};
-  const me = state.me || {};
+function renderProfilV2(d){
+  // Helper render item
+  const item = (lbl, val) => `
+    <div style="display:flex; margin-bottom:6px; border-bottom:1px solid #eee; padding-bottom:4px;">
+      <div style="flex:1; color:#666; font-size:13px;">${lbl}</div>
+      <div style="flex:1.5; font-weight:600; text-align:right;">${val || '-'}</div>
+    </div>`;
+    
+  const linkIcon = (url) => url ? `<a href="${url}" target="_blank" style="text-decoration:none;">🔗</a>` : '';
 
-  const nama = pick_(d, ['NAMA','Nama']) || me.nama || '-';
-  const nip  = pick_(d, ['NIP']) || me.nip || '-';
-  const unit = pick_(d, ['UNIT','Unit']) || '-';
-  const jabatan = pick_(d, ['JABATAN','JABATAN STRUKTURAL','JABATAN FUNGSIONAL']) || '-';
-  const statusAktif = pick_(d, ['STATUS AKTIF','Status Aktif']) || '-';
-  const statusKepeg = pick_(d, ['STATUS KEPEGAWAIAN','JENIS KEPEGAWAIAN','Jenis Kepegawaian']) || '-';
-  const tmt = pick_(d, ['TMT']) || '-';
-  const golongan = pick_(d, ['GOLONGAN','Golongan','GOL. RUANG']) || '-';
-  const pangkat = pick_(d, ['PANGKAT','Pangkat']) || '-';
-  const lokasiKerja = pick_(d, ['LOKASI KERJA','Lokasi Kerja','KANTOR']) || '-';
-  const email = pick_(d, ['EMAIL','Email']) || me.email || '-';
-  const hp = pick_(d, ['NO HP','NO. HP','HP','No HP','No. HP']) || '-';
-
-  const tempatLahir = pick_(d, ['TEMPAT LAHIR','Tempat Lahir']) || '';
-  const tglLahir = pick_(d, ['TANGGAL LAHIR (TTTT-BB-HH)','TANGGAL LAHIR','Tanggal Lahir']) || '';
-  const ttl = [tempatLahir, tglLahir].filter(x => String(x||'').trim() !== '').join(', ') || '-';
-  const gender = pick_(d, ['JENIS KELAMIN','Jenis Kelamin','SEX']) || '-';
-  const agama = pick_(d, ['AGAMA','Agama']) || '-';
-  const statusNikah = pick_(d, ['STATUS PERNIKAHAN','Status Pernikahan','STATUS NIKAH']) || '-';
-
-  const pendidikan = pick_(d, ['PENDIDIKAN TERAKHIR','Pendidikan Terakhir']) || '-';
-  const alamatRingkas = [
-    pick_(d, ['KECAMATAN']),
-    pick_(d, ['KOTA/KABUPATEN','KOTA','KABUPATEN']),
-    pick_(d, ['KODE POS'])
-  ].filter(x => String(x||'').trim() !== '').join(', ') || '-';
-
-  const nikRaw = pick_(d, ['NIK']) || '';
-  const nikMasked = nikRaw ? maskNIK_(nikRaw) : '-';
-  const masaKerja = computeMasaKerja_(tmt);
-  const alamatLengkap = pick_(d, ['ALAMAT','Alamat','ALAMAT LENGKAP']) || '-';
-  const bpjsTk = pick_(d, ['BPJS KETENAGAKERJAAN','BPJS TK']) || '-';
-  const bpjsKes = pick_(d, ['BPJS KESEHATAN','BPJS KES']) || '-';
-
-  const noticeHtml = notice
-    ? `<div class="muted" style="margin-top:6px;color:#ffb4b4;">${escapeHtml(notice)}</div>`
-    : `<div class="muted" style="margin-top:6px;">${escapeHtml(PROFIL_DEFAULT_NOTICE)}</div>`;
-
-  root.innerHTML = `
+  // 1. BOX RINGKASAN
+  const boxSummary = `
     <div class="card">
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:20px;font-weight:900;line-height:1.2;">${escapeHtml(nama)}</div>
-        <div class="muted" style="line-height:1.6;">
-          NIP: <b>${escapeHtml(nip)}</b> • Unit: <b>${escapeHtml(unit)}</b><br>
-          Jabatan: <b>${escapeHtml(jabatan)}</b>
-        </div>
-        ${noticeHtml}
-      </div>
-    </div>
+      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Ringkasan Kepegawaian</div>
+      ${item('Nama', d.summary.nama)}
+      ${item('NIP', d.summary.nip)}
+      ${item('Unit Kerja', d.summary.unit)}
+      ${item('Jabatan', d.summary.jabatan)}
+      ${item('Status', d.summary.status_kepeg)}
+      ${item('Masa Kerja', d.summary.masa_kerja)}
+    </div>`;
 
+  // 2. BOX KONTAK
+  const daruratStr = d.contact.darurat.nama ? 
+    `${d.contact.darurat.nama} (${d.contact.darurat.hubungan}) - ${d.contact.darurat.hp}` : '-';
+    
+  const boxContact = `
     <div class="card">
-      <div style="font-weight:900;margin-bottom:10px;">Ringkasan Kepegawaian</div>
-      ${kv('Status aktif', statusAktif)}
-      ${kv('Status/jenis kepegawaian', statusKepeg)}
-      ${kv('TMT', tmt)}
-      ${kv('Golongan', golongan)}
-      ${kv('Pangkat', pangkat)}
-      ${kv('Lokasi kerja', lokasiKerja)}
-      ${kv('Masa kerja', masaKerja)}
-    </div>
+      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Kontak</div>
+      ${item('No. HP', d.contact.hp)}
+      ${item('WhatsApp', d.contact.wa)}
+      ${item('Email', d.contact.email)}
+      ${item('Domisili', `${d.contact.domisili}, ${d.contact.kecamatan}, ${d.contact.kab_kota}`)}
+      ${item('Kontak Darurat', daruratStr)}
+    </div>`;
 
+  // 3. BOX PRIBADI
+  // Masking NIK sederhana
+  const nikMask = d.personal.nik ? d.personal.nik.substring(0,6) + '******' + d.personal.nik.substring(12) : '-';
+  
+  const boxPersonal = `
     <div class="card">
-      <div style="font-weight:900;margin-bottom:10px;">Kontak</div>
-      ${kv('Email', email)}
-      ${kv('No. HP', hp)}
-      ${kv('Alamat lengkap', alamatLengkap)}
-      ${kv('Domisili (ringkas)', alamatRingkas)}
-    </div>
+      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Data Pribadi</div>
+      ${item('NIK', nikMask)}
+      ${item('TTL', d.personal.ttl)}
+      ${item('Gender', d.personal.gender)}
+      ${item('Status Pernikahan', d.personal.status_nikah)}
+      ${item('Pend. Terakhir', d.personal.pendidikan_str)}
+      ${item('BPJS Kesehatan', d.personal.bpjs_kes)}
+      ${item('BPJS Ketenagakerjaan', d.personal.bpjs_tk)}
+    </div>`;
 
+  // 4. BOX PENDIDIKAN FORMAL (Table Style)
+  let rowsFormal = d.edu_formal.map(x => `
+    <tr>
+      <td><b>${x.level}</b></td>
+      <td>${x.nama}<br><small class="muted">${x.jur || ''}</small></td>
+      <td>${x.thn}</td>
+      <td>${linkIcon(x.link)}</td>
+    </tr>
+  `).join('');
+  
+  const boxEduFormal = `
     <div class="card">
-      <div style="font-weight:900;margin-bottom:10px;">Data Pribadi</div>
-      ${kv('TTL', ttl)}
-      ${kv('Jenis kelamin', gender)}
-      ${kv('Agama', agama)}
-      ${kv('Status pernikahan', statusNikah)}
-      ${kv('Pendidikan terakhir', pendidikan)}
-      ${kv('NIK (mask)', nikMasked)}
-      ${kv('BPJS Ketenagakerjaan', bpjsTk)}
-      ${kv('BPJS Kesehatan', bpjsKes)}
-      <div class="muted" style="margin-top:10px;">
-        Catatan: detail sensitif (alamat lengkap/NIK full) sengaja tidak ditampilkan.
-      </div>
-    </div>
-  `;
+      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Riwayat Pendidikan Formal</div>
+      <table style="width:100%; font-size:13px; border-collapse:collapse;">
+        <tr style="text-align:left; color:#888;"><th>Jenjang</th><th>Nama/Jurusan</th><th>Thn</th><th>Dok</th></tr>
+        ${rowsFormal || '<tr><td colspan="4" style="text-align:center;">Tidak ada data</td></tr>'}
+      </table>
+    </div>`;
+
+  // 5. BOX NON FORMAL
+  let rowsNon = d.edu_nonformal.map(x => `
+    <tr>
+      <td>${x.nama}<br><small class="muted">${x.prog || ''}</small></td>
+      <td>${x.thn}</td>
+      <td>${linkIcon(x.link)}</td>
+    </tr>
+  `).join('');
+
+  const boxEduNon = `
+    <div class="card">
+      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Pendidikan Non-Formal</div>
+      <table style="width:100%; font-size:13px; border-collapse:collapse;">
+        <tr style="text-align:left; color:#888;"><th>Pelatihan</th><th>Thn</th><th>Sert</th></tr>
+        ${rowsNon || '<tr><td colspan="3" style="text-align:center;">Tidak ada data</td></tr>'}
+      </table>
+    </div>`;
+
+  root.innerHTML = boxSummary + boxContact + boxPersonal + boxEduFormal + boxEduNon;
 }
-
 /* ===================== PLACEHOLDER ===================== */
 function renderPlaceholder_(title){
   root.innerHTML = `
