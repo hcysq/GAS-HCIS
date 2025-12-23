@@ -151,8 +151,6 @@ function normalizeNIP_(v) {
  * Profil Users (structured)
  *************************************************/
 
-const USERS_SPREADSHEET_ID = '1ImaTVL7aBk3DOV5bLgIJX3XPeaUJRfkai1nWlXXhNLU';
-
 function getProfilUsersDetail() {
   try {
     const s = requireLogin_();
@@ -164,7 +162,7 @@ function getProfilUsersDetail() {
       return { ok:false, msg:'Session tidak memiliki USER_ID atau NIP untuk pencarian.' };
     }
 
-    const { sheet: sh, error: sheetErr } = getUsersSheetById_();
+    const { sheet: sh, error: sheetErr } = getUsersSheetByConfig_();
     if (!sh) return { ok:false, msg: sheetErr || 'Sheet Users tidak ditemukan.' };
 
     const lastRow = sh.getLastRow();
@@ -203,15 +201,25 @@ function getProfilUsersDetail() {
   }
 }
 
-function getUsersSheetById_() {
+function getUsersSheetByConfig_() {
   try {
-    const ss = SpreadsheetApp.openById(USERS_SPREADSHEET_ID);
+    const { ss, error: ssErr } = getMasterdataSpreadsheet_();
+    if (!ss) return { sheet: null, error: ssErr || 'Spreadsheet Masterdata tidak tersedia (cek MASTERDATA_SS_ID).' };
+
+    const gidRaw = cfgGet('MASTERDATA_GID', '');
+    const gid = Number(gidRaw);
+    if (!isNaN(gid) && gid > 0) {
+      const byId = ss.getSheets().find(sh => sh.getSheetId() === gid);
+      if (byId) return { sheet: byId };
+      return { sheet: null, error:`Sheet dengan GID ${gid} (MASTERDATA_GID) tidak ditemukan di spreadsheet Masterdata.` };
+    }
+
     const sh = ss.getSheetByName(CFG.SHEET_USERS);
-    if (!sh) return { sheet: null, error:`Sheet "${CFG.SHEET_USERS}" tidak ditemukan pada spreadsheet Users.` };
-    return { sheet: sh };
+    if (sh) return { sheet: sh };
+    return { sheet: null, error:`Sheet "${CFG.SHEET_USERS}" tidak ditemukan pada spreadsheet Masterdata.` };
   } catch (e) {
     const errMsg = e && e.message ? e.message : e;
-    return { sheet: null, error:`Gagal membuka spreadsheet Users: ${errMsg}` };
+    return { sheet: null, error:`Gagal membuka spreadsheet Users (MASTERDATA_SS_ID): ${errMsg}` };
   }
 }
 
