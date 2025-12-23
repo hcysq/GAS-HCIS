@@ -230,6 +230,7 @@ function buildProfilPayload_(raw){
       domisili: getVal(['DOMISILI', 'Alamat Domisili', 'ALAMAT DOMISILI']),
       kecamatan: getVal(['KECAMATAN', 'Kecamatan']),
       kab_kota: getVal(['KAB/KOTA', 'KABUPATEN/KOTA', 'Kota', 'KABUPATEN']),
+      kode_pos: getVal(['KODE POS', 'KODE_POS', 'KODEPOS']),
       darurat: emergency
     },
     personal: {
@@ -289,54 +290,26 @@ function formatDateReadable_(val){
 }
 
 function renderProfilLayout_(d){
-  const fallbackNotice = '<span class="muted">Belum ada data hasil pencarian USER_ID/NIP.</span>';
+  const fallbackNotice = '<span class="muted">-</span>';
   const item = (lbl, val) => `
-    <div style="display:flex; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:6px; align-items:flex-start;">
+    <div style="display:flex; gap:12px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #f0f0f0;">
       <div style="flex:1; color:#666; font-size:13px;">${escapeHtml(lbl)}</div>
       <div style="flex:1.5; font-weight:700; text-align:right;">${val || '-'}</div>
     </div>`;
 
-  const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '';
+  const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '-';
 
-  const emergency = d.contact.darurat;
-  const daruratStr = (emergency.nama || emergency.hp || emergency.hubungan)
-    ? `${escapeHtml(emergency.nama || '-')}${emergency.hubungan ? ' (' + escapeHtml(emergency.hubungan) + ')' : ''}${emergency.hp ? ' - ' + escapeHtml(emergency.hp) : ''}`
-    : fallbackNotice;
+  const emergency = d.contact.darurat || {};
+  const daruratNama = escapeHtml(emergency.nama || '-');
+  const daruratHub = escapeHtml(emergency.hubungan || '-');
+  const daruratHp = escapeHtml(emergency.hp || '-');
 
-  const boxSummary = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Ringkasan Kepegawaian</div>
-      ${item('Nama', escapeHtml(d.summary.nama || '-') )}
-      ${item('NIP', escapeHtml(d.summary.nip || '-') )}
-      ${item('Unit', escapeHtml(d.summary.unit || '-') )}
-      ${item('Jabatan', escapeHtml(d.summary.jabatan || '-') )}
-      ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-') )}
-      ${item('TMT', escapeHtml(d.summary.tmt || '-') )}
-      ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-') )}
-    </div>`;
-
-  const boxContact = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Kontak</div>
-      ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
-      ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
-      ${item('Email', escapeHtml(d.contact.email || '-') )}
-      ${item('Alamat KTP', escapeHtml(d.contact.alamatKtp || '-') )}
-      ${item('Domisili', escapeHtml([d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota].filter(Boolean).join(', ') || '-') )}
-      ${item('Kontak Darurat', daruratStr)}
-    </div>`;
-
-  const boxPersonal = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Data Pribadi</div>
-      ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
-      ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
-      ${item('Gender', escapeHtml(d.personal.gender || '-') )}
-      ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-') )}
-      ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-') )}
-      ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-') )}
-      ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
-    </div>`;
+  const domisiliParts = [d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota, d.contact.kode_pos].filter(Boolean);
+  const domisiliStr = domisiliParts.length ? escapeHtml(domisiliParts.join(', ')) : '-';
+  const domisiliOnly = escapeHtml(d.contact.domisili || '-');
+  const kecamatan = escapeHtml(d.contact.kecamatan || '-');
+  const kabKota = escapeHtml(d.contact.kab_kota || '-');
+  const kodePos = escapeHtml(d.contact.kode_pos || '-');
 
   const rowsFormal = (d.edu_formal || []).map(x => `
     <tr>
@@ -347,15 +320,6 @@ function renderProfilLayout_(d){
     </tr>
   `).join('');
 
-  const boxEduFormal = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Riwayat Pendidikan Formal</div>
-      <table style="width:100%; font-size:13px; border-collapse:collapse;">
-        <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Jenjang</th><th>Nama</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Ijazah</th></tr>
-        ${rowsFormal || `<tr><td colspan="4" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
-      </table>
-    </div>`;
-
   const rowsNon = (d.edu_nonformal || []).map(x => `
     <tr>
       <td>${escapeHtml(x.nama || '-')}</td>
@@ -364,16 +328,64 @@ function renderProfilLayout_(d){
     </tr>
   `).join('');
 
-  const boxEduNon = `
+  root.innerHTML = `
     <div class="card">
-      <div style="font-weight:900; font-size:16px; margin-bottom:10px; color:#2c3e50;">Pendidikan Non-Formal</div>
-      <table style="width:100%; font-size:13px; border-collapse:collapse;">
-        <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Pelatihan</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Sertifikat</th></tr>
-        ${rowsNon || `<tr><td colspan="3" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
-      </table>
-    </div>`;
+      <div style="font-weight:900; font-size:18px; margin-bottom:10px; color:#2c3e50;">Profil Karyawan</div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <div style="font-weight:800; margin-bottom:6px;">Ringkasan Kepegawaian</div>
+          ${item('Nama', escapeHtml(d.summary.nama || '-') )}
+          ${item('NIP', escapeHtml(d.summary.nip || '-') )}
+          ${item('Unit', escapeHtml(d.summary.unit || '-') )}
+          ${item('Jabatan', escapeHtml(d.summary.jabatan || '-') )}
+          ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-') )}
+          ${item('TMT', escapeHtml(d.summary.tmt || '-') )}
+          ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-') )}
+        </div>
 
-  root.innerHTML = boxSummary + boxContact + boxPersonal + boxEduFormal + boxEduNon;
+        <div>
+          <div style="font-weight:800; margin-bottom:6px;">Data Pribadi</div>
+          ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
+          ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
+          ${item('Gender', escapeHtml(d.personal.gender || '-') )}
+          ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-') )}
+          ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-') )}
+          ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-') )}
+          ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
+        </div>
+
+        <div>
+          <div style="font-weight:800; margin-bottom:6px;">Kontak & Alamat</div>
+          ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
+          ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
+          ${item('Email', escapeHtml(d.contact.email || '-') )}
+          ${item('Alamat KTP', escapeHtml(d.contact.alamatKtp || '-') )}
+          ${item('Alamat Domisili', domisiliOnly)}
+          ${item('Kecamatan Domisili', kecamatan)}
+          ${item('Kab/Kota Domisili', kabKota)}
+          ${item('Kode Pos Domisili', kodePos)}
+          ${item('Domisili (Ringkas)', domisiliStr)}
+          ${item('Kontak Darurat - Nama', daruratNama)}
+          ${item('Kontak Darurat - Hubungan', daruratHub)}
+          ${item('Kontak Darurat - HP', daruratHp)}
+        </div>
+
+        <div>
+          <div style="font-weight:800; margin-bottom:6px;">Riwayat Pendidikan</div>
+          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Formal</div>
+          <table style="width:100%; font-size:13px; border-collapse:collapse; margin-bottom:10px;">
+            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Jenjang</th><th>Nama</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Ijazah</th></tr>
+            ${rowsFormal || `<tr><td colspan="4" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
+          </table>
+
+          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Non-Formal</div>
+          <table style="width:100%; font-size:13px; border-collapse:collapse;">
+            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Pelatihan</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Sertifikat</th></tr>
+            ${rowsNon || `<tr><td colspan="3" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
+          </table>
+        </div>
+      </div>
+    </div>`;
 }
 /* ===================== PLACEHOLDER ===================== */
 function renderPlaceholder_(title){
