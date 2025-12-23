@@ -173,14 +173,15 @@ function renderDashboard(){
 }
 
 /* ===================== PROFIL (ATS friendly) ===================== */
+const PROFIL_DEFAULT_NOTICE = 'Profil dicari di Masterdata menggunakan USER_ID session dan NIP session; keduanya dicek untuk memastikan kecocokan.';
+
 function renderProfil(){
   // skeleton: tetap tampilkan header agar UI tidak kosong saat data gagal dimuat
-  const defaultNotice = 'Profil dicari di Masterdata menggunakan USER_ID session serta NIP session untuk memastikan kecocokan.';
   renderProfilLayout_(null, 'Memuat data dari Masterdata…');
 
   google.script.run
     .withSuccessHandler(res=>{
-      const notice = res?.msg || defaultNotice;
+      const notice = res?.msg || PROFIL_DEFAULT_NOTICE;
       if(!res || !res.ok){
         renderProfilLayout_(null, notice);
         return;
@@ -189,7 +190,7 @@ function renderProfil(){
       renderProfilLayout_(res.data || {}, notice);
     })
     .withFailureHandler(err=>{
-      const notice = (err && err.message) ? err.message : defaultNotice;
+      const notice = (err && err.message) ? err.message : PROFIL_DEFAULT_NOTICE;
       renderProfilLayout_(null, notice);
     })
     .getProfilMasterdataSaya();
@@ -235,7 +236,7 @@ function renderProfilLayout_(data, notice){
 
   const noticeHtml = notice
     ? `<div class="muted" style="margin-top:6px;color:#ffb4b4;">${escapeHtml(notice)}</div>`
-    : '<div class="muted" style="margin-top:6px;">Profil dicari di Masterdata menggunakan USER_ID session serta NIP session untuk memastikan kecocokan.</div>';
+    : `<div class="muted" style="margin-top:6px;">${escapeHtml(PROFIL_DEFAULT_NOTICE)}</div>`;
 
   root.innerHTML = `
     <div class="card">
