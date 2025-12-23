@@ -146,3 +146,216 @@ function normalizeNIP_(v) {
   const digits = s.replace(/[^\d]/g, '');
   return digits || s;
 }
+
+/*************************************************
+ * Profil Users (structured)
+ *************************************************/
+
+const USERS_SPREADSHEET_ID = '1ImaTVL7aBk3DOV5bLgIJX3XPeaUJRfkai1nWlXXhNLU';
+
+function getProfilUsersDetail() {
+  try {
+    const s = requireLogin_();
+    const nipSession = String(s.nip || '').trim();
+    const userIdSession = String(s.userId || '').trim();
+    const nipKey = normalizeNIP_(nipSession);
+
+    if (!nipKey && !userIdSession) {
+      return { ok:false, msg:'Session tidak memiliki USER_ID atau NIP untuk pencarian.' };
+    }
+
+    const { sheet: sh, error: sheetErr } = getUsersSheetById_();
+    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Users tidak ditemukan.' };
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return { ok:false, msg:'Sheet Users kosong atau belum ada data.' };
+
+    const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const headersRow = values[0].map(h => String(h || '').trim());
+    const headerMap = buildHeaderMap_(headersRow);
+
+    const idxNip = findHeaderIdx_(headerMap, ['NIP']);
+    const idxUserId = findHeaderIdx_(headerMap, ['USER_ID']);
+    if (idxNip < 0 && idxUserId < 0) {
+      return { ok:false, msg:'Header "NIP" atau "USER_ID" tidak ditemukan di sheet Users.' };
+    }
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const nipCellKey = idxNip >= 0 ? normalizeNIP_(row[idxNip]) : '';
+      const userIdCell = idxUserId >= 0 ? String(row[idxUserId] || '').trim() : '';
+
+      const nipMatches = nipKey && nipCellKey && nipCellKey === nipKey;
+      const userIdMatches = userIdSession && userIdCell && userIdCell === userIdSession;
+      const userIdAllowed = userIdMatches && (!nipKey || !nipCellKey || nipCellKey === nipKey);
+
+      if (nipMatches || userIdAllowed) {
+        const data = buildStructuredProfile_(row, headerMap);
+        return { ok:true, data };
+      }
+    }
+
+    return { ok:false, msg:`Data Users tidak ditemukan untuk USER_ID=${userIdSession || '-'} / NIP=${nipSession || '-'}.` };
+
+  } catch (e) {
+    return { ok:false, msg:`Error Profil Users: ${e && e.message ? e.message : e}` };
+  }
+}
+
+function getUsersSheetById_() {
+  try {
+    const ss = SpreadsheetApp.openById(USERS_SPREADSHEET_ID);
+    const sh = ss.getSheetByName(CFG.SHEET_USERS);
+    if (!sh) return { sheet: null, error:`Sheet "${CFG.SHEET_USERS}" tidak ditemukan pada spreadsheet Users.` };
+    return { sheet: sh };
+  } catch (e) {
+    const errMsg = e && e.message ? e.message : e;
+    return { sheet: null, error:`Gagal membuka spreadsheet Users: ${errMsg}` };
+  }
+}
+
+function buildHeaderMap_(headers) {
+  const map = {};
+  headers.forEach((h, i) => {
+    const key = String(h || '').trim();
+    if (!key) return;
+    map[key] = i;
+    const lower = key.toLowerCase();
+    if (!Object.prototype.hasOwnProperty.call(map, lower)) map[lower] = i;
+  });
+  return map;
+}
+
+function findHeaderIdx_(map, names) {
+  for (const n of names) {
+    if (Object.prototype.hasOwnProperty.call(map, n)) return map[n];
+    const lower = String(n || '').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(map, lower)) return map[lower];
+  }
+  return -1;
+}
+
+function pickCell_(row, map, names) {
+  const idx = findHeaderIdx_(map, names);
+  if (idx === -1) return '';
+  return row[idx];
+}
+
+function buildStructuredProfile_(row, headerMap) {
+  const get = (names) => pickCell_(row, headerMap, Array.isArray(names) ? names : [names]);
+  const txtVal = (names) => txt(get(names));
+
+  const tmtRaw = get(['TMT']);
+  const tmtStr = formatDateLocal_(tmtRaw);
+  const masaKerja = computeMasaKerjaFromDate_(tmtRaw);
+
+  const pendidikanAkhir = txtVal(['Pendidikan_Terakhir', 'Pend_Terakhir']);
+
+  return {
+    summary: {
+      nama: txtVal(['Nama']),
+      nip: txtVal(['NIP']),
+      jabatan: txtVal(['JABATAN', 'JABATAN STRUKTURAL', 'JABATAN FUNGSIONAL', 'Jabatan']),
+      unit: txtVal(['UNIT', 'Unit']),
+      status_kepeg: txtVal(['Status_Kepeg', 'Status Kepeg'] ),
+      tmt: tmtStr,
+      masa_kerja: masaKerja
+    },
+    contact: {
+      hp: txtVal(['No_HP', 'HP']),
+      wa: txtVal(['WhatsApp', 'WA', 'No_WA', 'WA_Number']) || txtVal(['No_HP', 'HP']),
+      email: txtVal(['Email']),
+      alamat_ktp: txtVal(['Alamat_KTP']),
+      domisili: txtVal(['Alamat_Domisili', 'Domisili']),
+      kecamatan: txtVal(['Kecamatan_Domisili', 'Kecamatan']),
+      kab_kota: txtVal(['Kab_Kota_Domisili', 'Kab_Kota']),
+      darurat: {
+        nama: txtVal(['Darurat_Nama', 'KontakDarurat_Nama']),
+        hp: txtVal(['Darurat_HP', 'KontakDarurat_HP', 'Darurat_WA']),
+        hubungan: txtVal(['Darurat_Hubungan', 'KontakDarurat_Hubungan'])
+      }
+    },
+    personal: {
+      nik: txtVal(['NIK']),
+      ttl: buildTTL_(txtVal(['Tempat_Lahir', 'Tempat Lahir']), get(['Tanggal_Lahir', 'Tanggal Lahir'])),
+      gender: txtVal(['Gender', 'Jenis_Kelamin', 'Jenis Kelamin']),
+      status_nikah: txtVal(['Status_Nikah', 'Status Nikah']),
+      bpjs_kes: txtVal(['BPJS_Kes']),
+      bpjs_tk: txtVal(['BPJS_TK', 'BPJS Ketenagakerjaan']),
+      pendidikan_terakhir: pendidikanAkhir,
+      pendidikan_str: pendidikanAkhir
+    },
+    edu_formal: buildFormalEdu_(row, headerMap),
+    edu_nonformal: buildNonFormalEdu_(row, headerMap)
+  };
+}
+
+function buildFormalEdu_(row, headerMap) {
+  const levels = ['SD', 'SMP', 'SMA', 'S1', 'S2', 'S3'];
+  const list = [];
+
+  levels.forEach(lv => {
+    const nama = txt(pickCell_(row, headerMap, [`Pend_${lv}`, `Pend_${lv}_Nama`]));
+    const jur = txt(pickCell_(row, headerMap, [`Pend_${lv}_Jurusan`]));
+    const thn = txt(pickCell_(row, headerMap, [`Pend_${lv}_Thn`, `Pend_${lv}_Tahun`]));
+    const link = txt(pickCell_(row, headerMap, [`Pend_${lv}_Link`]));
+
+    if (nama || jur || thn || link) {
+      list.push({ level: lv, nama, jur, thn, link });
+    }
+  });
+
+  return list;
+}
+
+function buildNonFormalEdu_(row, headerMap) {
+  const list = [];
+  for (let i = 1; i <= 3; i++) {
+    const nama = txt(pickCell_(row, headerMap, [`NonFormal_${i}`, `NonFormal_${i}_Nama`]));
+    const prog = txt(pickCell_(row, headerMap, [`NonFormal_${i}_Program`, `NonFormal_${i}_Prog`]));
+    const thn = txt(pickCell_(row, headerMap, [`NonFormal_${i}_Thn`, `NonFormal_${i}_Tahun`]));
+    const link = txt(pickCell_(row, headerMap, [`NonFormal_${i}_Link`]));
+
+    if (nama || prog || thn || link) {
+      list.push({ nama, prog, thn, link });
+    }
+  }
+  return list;
+}
+
+function buildTTL_(tempat, tglRaw) {
+  const tempatStr = String(tempat || '').trim();
+  const tanggalStr = formatDateLocal_(tglRaw);
+  if (tempatStr && tanggalStr) return `${tempatStr}, ${tanggalStr}`;
+  return tempatStr || tanggalStr || '';
+}
+
+function formatDateLocal_(v) {
+  if (!v) return '';
+  try {
+    const date = new Date(v);
+    if (isNaN(date.getTime())) return '';
+    const tz = Session.getScriptTimeZone ? Session.getScriptTimeZone() : 'Asia/Jakarta';
+    return Utilities.formatDate(date, tz, 'dd MMM yyyy');
+  } catch (e) {
+    return '';
+  }
+}
+
+function computeMasaKerjaFromDate_(tmtVal) {
+  try {
+    if (!tmtVal) return '-';
+    const dt = new Date(tmtVal);
+    if (isNaN(dt.getTime())) return '-';
+    const now = new Date();
+    let years = now.getFullYear() - dt.getFullYear();
+    let months = now.getMonth() - dt.getMonth();
+    if (months < 0) { years -= 1; months += 12; }
+    if (years < 0) return '-';
+    if (years === 0) return `${months} bulan`;
+    return `${years} tahun ${months} bulan`;
+  } catch (e) {
+    return '-';
+  }
+}
