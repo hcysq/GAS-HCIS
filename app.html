@@ -191,10 +191,9 @@ function renderProfil(){
         return;
       }
 
-      const payload = buildProfilPayload_(res.data);
-      renderProfilLayout_(payload);
+      renderProfilLayout_(res.data);
     })
-    .getProfilUsersDetail();
+    .getProfilMasterdataSaya();
 }
 
 function buildProfilPayload_(raw){
