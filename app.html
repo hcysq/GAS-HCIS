@@ -104,15 +104,31 @@ function renderRoute(route){
 /* ===================== DASHBOARD ===================== */
 function renderDashboard(){
   const me = state.me;
-  const isAdmin = me && me.role === 'ADMIN';
-  const isKapla = me && me.role === 'KAPLA';
+  
+  // Helper function to check if user has a specific role (supports multiple roles)
+  const hasRole = (role) => {
+    if (!me) return false;
+    // Support both single role string and array of roles
+    if (Array.isArray(me.roles)) {
+      return me.roles.includes(role);
+    }
+    return me.role === role;
+  };
+  
+  // Display all roles (if array exists, join them; otherwise use single role)
+  const roleDisplay = Array.isArray(me.roles) 
+    ? me.roles.join(', ')
+    : (me.role || 'PTK');
+
+  const isAdmin = hasRole('ADMIN');
+  const isKapla = hasRole('KAPLA');
   const isManager = isAdmin || isKapla;
 
   root.innerHTML=`
     <div class="card">
       <div style="font-weight:900;font-size:18px;">Assalamu'alaikum, ${escapeHtml(me.nama||me.nip)}</div>
       <div class="muted" style="margin-top:4px;">
-        NIP: <b>${escapeHtml(me.nip)}</b> • Role: <b>${escapeHtml(me.role)}</b>
+        NIP: <b>${escapeHtml(me.nip)}</b> • Role: <b>${escapeHtml(roleDisplay)}</b>
       </div>
       <div class="muted" style="margin-top:6px;">
         <span id="dashUnit">Unit: …</span> • <span id="dashJabatan">Jabatan: …</span>

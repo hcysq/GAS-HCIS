@@ -21,12 +21,47 @@ const ROLE_LABELS = {
 };
 
 /**
- * Get user role dari session
- * @returns {string} Role user (PTK, KAPLA, ADMIN, dll)
+ * Parse role string menjadi array
+ * @param {string} roleStr - Role string (format: "PTK" atau "PTK,ADMIN,KAPLA")
+ * @returns {string[]} Array of roles
+ */
+function parseRoles_(roleStr) {
+  if (!roleStr) return [ROLES.PTK];
+  const roles = String(roleStr)
+    .split(/[,;|]/)  // Split by comma, semicolon, or pipe
+    .map(r => String(r).trim().toUpperCase())
+    .filter(r => r && Object.values(ROLES).includes(r));
+  
+  // Ensure PTK is always included
+  if (!roles.includes(ROLES.PTK)) {
+    roles.unshift(ROLES.PTK);
+  }
+  return roles;
+}
+
+/**
+ * Get user roles dari session sebagai array
+ * @returns {string[]} Array of roles user
+ */
+function getUserRoles() {
+  const s = getSession_();
+  if (!s) return null;
+  
+  // roles bisa berupa string atau array
+  const roleData = s.roles || s.role;
+  if (Array.isArray(roleData)) {
+    return roleData;
+  }
+  return parseRoles_(roleData);
+}
+
+/**
+ * Get user role (single) - backward compatibility
+ * @returns {string} Primary role user
  */
 function getUserRole() {
-  const s = getSession_();
-  return s ? (s.role || ROLES.PTK) : null;
+  const roles = getUserRoles();
+  return roles && roles.length > 0 ? roles[0] : ROLES.PTK;
 }
 
 /**
@@ -35,13 +70,11 @@ function getUserRole() {
  * @returns {boolean}
  */
 function hasRole(requiredRole) {
-  const userRole = getUserRole();
-  if (!userRole) return false;
+  const userRoles = getUserRoles();
+  if (!userRoles || userRoles.length === 0) return false;
   
-  if (Array.isArray(requiredRole)) {
-    return requiredRole.includes(userRole);
-  }
-  return userRole === requiredRole;
+  const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+  return required.some(r => userRoles.includes(r));
 }
 
 /**

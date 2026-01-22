@@ -51,15 +51,20 @@ function authLogin(nip, pin) {
       return { ok:false, msg:'NIP atau password salah.' };
     }
 
+    // Parse multiple roles (format: "PTK" atau "PTK,ADMIN,KAPLA")
+    const rolesStr = user.role || 'PTK';
+    const roleArray = parseRoles_(rolesStr);
+
     setSession_({
       nip,
       nama: user.nama || '',
-      role: user.role || 'PTK',
+      roles: roleArray,
+      role: rolesStr,  // Keep original string for backward compatibility
       email: user.email || '',
       userId: user.userId || ''
     });
     
-    Logger.log('Login berhasil untuk NIP: ' + nip);
+    Logger.log('Login berhasil untuk NIP: ' + nip + ' dengan roles: ' + roleArray.join(', '));
     return { ok:true };
   } catch (err) {
     Logger.log('Error di authLogin: ' + (err.message || err));
