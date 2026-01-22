@@ -1,6 +1,11 @@
 const _USERS_CACHE_KEY = 'HCIS_USERS_MAP_V1';
 const _USERS_CACHE_TTL = 300; // detik
 const _USERS_PASSWORD_CACHE_KEY = 'HCIS_USERS_PASSMAP_V1';
+const _LOGIN_FAIL_CACHE_PREFIX = 'HCIS_LOGIN_FAIL_V1:';
+const _LOGIN_BLOCK_CACHE_PREFIX = 'HCIS_LOGIN_BLOCK_V1:';
+const _LOGIN_FAIL_TTL = 900; // detik
+const _LOGIN_BLOCK_TTL = 300; // detik
+const _LOGIN_FAIL_MAX = 5;
 
 /*************************************************
  * Authentication
@@ -13,6 +18,10 @@ function authLogin(nip, pin) {
     
     if (!nip || !pin) {
       return { ok:false, msg:'NIP & PIN wajib diisi' };
+    }
+
+    if (isLoginBlocked_(nip)) {
+      return { ok:false, msg:'Terlalu banyak percobaan gagal. Akun diblok sementara beberapa menit.' };
     }
 
     let userMap;
@@ -32,6 +41,10 @@ function authLogin(nip, pin) {
     
     if (!user) {
       Logger.log('NIP tidak ditemukan: ' + nip);
+      const failState = registerLoginFailure_(nip);
+      if (failState.blocked) {
+        return { ok:false, msg:'Terlalu banyak percobaan gagal. Akun diblok sementara beberapa menit.' };
+      }
       return { ok:false, msg:'NIP atau password salah.' };
     }
 
@@ -48,8 +61,14 @@ function authLogin(nip, pin) {
       Logger.log('Password hash tidak cocok untuk NIP: ' + nip);
       Logger.log('Input hash: ' + inputHash);
       Logger.log('Stored hash: ' + storedHash);
+      const failState = registerLoginFailure_(nip);
+      if (failState.blocked) {
+        return { ok:false, msg:'Terlalu banyak percobaan gagal. Akun diblok sementara beberapa menit.' };
+      }
       return { ok:false, msg:'NIP atau password salah.' };
     }
+
+    clearLoginFail_(nip);
 
     // Parse multiple roles dari kolom boolean (PTK, KAPLA, ADMIN)
     const roleArray = parseRoles_(user);
@@ -69,6 +88,39 @@ function authLogin(nip, pin) {
     Logger.log('Error di authLogin: ' + (err.message || err));
     return { ok:false, msg:'Error: ' + (err.message || err) };
   }
+}
+
+function registerLoginFailure_(nip) {
+  const cache = CacheService.getScriptCache();
+  const failKey = getLoginFailKey_(nip);
+  const blockKey = getLoginBlockKey_(nip);
+  const current = Number(cache.get(failKey) || 0);
+  const nextCount = current + 1;
+  cache.put(failKey, String(nextCount), _LOGIN_FAIL_TTL);
+  if (nextCount >= _LOGIN_FAIL_MAX) {
+    cache.put(blockKey, String(Date.now()), _LOGIN_BLOCK_TTL);
+    return { blocked: true, count: nextCount };
+  }
+  return { blocked: false, count: nextCount };
+}
+
+function isLoginBlocked_(nip) {
+  const cache = CacheService.getScriptCache();
+  return Boolean(cache.get(getLoginBlockKey_(nip)));
+}
+
+function clearLoginFail_(nip) {
+  const cache = CacheService.getScriptCache();
+  cache.remove(getLoginFailKey_(nip));
+  cache.remove(getLoginBlockKey_(nip));
+}
+
+function getLoginFailKey_(nip) {
+  return `${_LOGIN_FAIL_CACHE_PREFIX}${nip}`;
+}
+
+function getLoginBlockKey_(nip) {
+  return `${_LOGIN_BLOCK_CACHE_PREFIX}${nip}`;
 }
 
 function authMe(token) {
