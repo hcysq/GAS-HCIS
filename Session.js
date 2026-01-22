@@ -8,6 +8,31 @@ function buildSessionKey_(token) {
   return `${SESSION_KEY_PREFIX}${token}`;
 }
 
+function getTokenFromRequest_(request) {
+  if (!request) return '';
+  if (typeof request === 'string') return request.trim();
+
+  if (typeof request === 'object') {
+    if (request.token) return String(request.token).trim();
+    if (request.authorization) return String(request.authorization).trim();
+    if (request.headers && request.headers.Authorization) {
+      const authHeader = String(request.headers.Authorization || '').trim();
+      if (authHeader.toLowerCase().startsWith('bearer ')) {
+        return authHeader.slice(7).trim();
+      }
+      return authHeader;
+    }
+    if (request.parameter && request.parameter.token) {
+      return String(request.parameter.token).trim();
+    }
+    if (request.parameters && request.parameters.token && request.parameters.token.length) {
+      return String(request.parameters.token[0]).trim();
+    }
+  }
+
+  return '';
+}
+
 function setSession_(user) {
   const token = Utilities.getUuid();
   const ttlSeconds = cfgGetNumber(
@@ -38,15 +63,16 @@ function setSession_(user) {
   return token;
 }
 
-function clearSession_(token) {
+function clearSession_(request) {
+  const token = getTokenFromRequest_(request);
   if (!token) return;
   const key = buildSessionKey_(token);
   CacheService.getScriptCache().remove(key);
   PropertiesService.getScriptProperties().deleteProperty(key);
 }
 
-function getSession_(token) {
-  const sessionToken = String(token || '').trim();
+function getSession_(request) {
+  const sessionToken = getTokenFromRequest_(request);
   if (!sessionToken) return null;
 
   const key = buildSessionKey_(sessionToken);
@@ -81,8 +107,8 @@ function getSession_(token) {
   }
 }
 
-function requireLogin_(token) {
-  const s = getSession_(token);
+function requireLogin_(request) {
+  const s = getSession_(request);
   if (!s) throw new Error('SESSION_EXPIRED');
   return s;
 }

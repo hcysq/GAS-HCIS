@@ -38,7 +38,7 @@ function getSessionToken_(){
 
 function withToken_(handler){
   const token = getSessionToken_();
-  return handler(token);
+  return handler({ token });
 }
 
 function isAuthed(){ return !!(state.me && state.me.ok); }
@@ -56,7 +56,7 @@ function goto(route){
 }
 
 function boot(){
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
       if(!res || !res.ok){
         clearSessionToken_();
@@ -67,7 +67,7 @@ function boot(){
       }
       state.me=res;
       goto('dash');
-    }).authMe(token);
+    }).authMe(request);
   });
 }
 
@@ -238,7 +238,7 @@ function renderDashboard(){
     ` : ''}
   `;
 
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
       if(!res || !res.ok || !res.data) return;
       const d = res.data;
@@ -248,7 +248,7 @@ function renderDashboard(){
       const elJab = document.getElementById('dashJabatan');
       if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
       if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
-    }).getProfilMasterdataSaya(token);
+    }).getProfilMasterdataSaya(request);
   });
 }
 
@@ -256,7 +256,7 @@ function renderDashboard(){
 function renderProfil(){
   root.innerHTML = '<div class="card"><div class="muted">Memuat profil...</div></div>';
 
-  withToken_(token => {
+  withToken_(request => {
     google.script.run
       .withSuccessHandler(res => {
         if(!res || !res.ok || !res.data) {
@@ -351,7 +351,7 @@ function renderProfil(){
         </div>
         `;
       })
-      .getProfilUsersDetail(token);
+      .getProfilUsersDetail(request);
   });
 }
 
@@ -393,14 +393,14 @@ function login(){
   }).authLogin(nip, pin);
 }
 function logout(){
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(()=>{
       clearSessionToken_();
       if (typeof settingsResetState_ === 'function') settingsResetState_();
       state.me=null;
       state.route='login';
       renderLogin('Anda sudah keluar.');
-    }).authLogout(token);
+    }).authLogout(request);
   });
 }
 

@@ -2,9 +2,9 @@
  * Dashboard
  *************************************************/
 
-function getSaldoCutiSaya(token) {
+function getSaldoCutiSaya(request) {
   try {
-    const s = requireLogin_(token);
+    const s = requireLogin_(request);
     const nip = s.nip;
 
     const t = readTable_(CFG.SHEET_SALDO);
