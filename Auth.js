@@ -1,5 +1,5 @@
 const _USERS_CACHE_KEY = 'HCIS_USERS_MAP_V1';
-const _USERS_CACHE_TTL = 60; // detik
+const _USERS_CACHE_TTL = 300; // detik
 const _USERS_PASSWORD_CACHE_KEY = 'HCIS_USERS_PASSMAP_V1';
 
 /*************************************************
@@ -94,7 +94,19 @@ function loadUsersMap_() {
     }
   }
 
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
   try {
+    const cachedAfterLock = cache.get(_USERS_CACHE_KEY);
+    if (cachedAfterLock) {
+      try {
+        return JSON.parse(cachedAfterLock);
+      } catch (_) {
+        Logger.log('Cache parsing gagal setelah lock, reload dari sheet');
+      }
+    }
+
     const t = readTable_(CFG.SHEET_USERS);
     const h = t.headers;
     const r = t.rows;
@@ -115,6 +127,17 @@ function loadUsersMap_() {
       Logger.log('Warning: Sheet Users kosong (tidak ada data)');
     }
 
+    let pinCacheMap = {};
+    const cachedPins = cache.get(_USERS_PASSWORD_CACHE_KEY);
+    if (cachedPins) {
+      try {
+        pinCacheMap = JSON.parse(cachedPins);
+      } catch (_) {
+        Logger.log('Cache PIN parsing gagal, hitung ulang PIN hash');
+        pinCacheMap = {};
+      }
+    }
+
     const map = {};
     for (const row of r) {
       const nip = txt(row[cNIP]);
@@ -126,8 +149,17 @@ function loadUsersMap_() {
         continue;
       }
 
+      let pinHash = '';
+      const cachedPin = pinCacheMap[nip];
+      if (cachedPin && cachedPin.pinRaw === pinRaw && cachedPin.pinHash) {
+        pinHash = cachedPin.pinHash;
+      } else {
+        pinHash = hashPin_(pinRaw);
+        pinCacheMap[nip] = { pinRaw, pinHash };
+      }
+
       map[nip] = {
-        pinHash: hashPin_(pinRaw),
+        pinHash,
         aktif: cAktif === -1 ? true : isTrue_(row[cAktif]),
         nama: row[cNama] ? txt(row[cNama]) : '',
         role: row[cRole] ? txt(row[cRole]) : 'PTK',
@@ -138,9 +170,12 @@ function loadUsersMap_() {
 
     Logger.log('Loaded ' + Object.keys(map).length + ' users dari sheet');
     cache.put(_USERS_CACHE_KEY, JSON.stringify(map), _USERS_CACHE_TTL);
+    cache.put(_USERS_PASSWORD_CACHE_KEY, JSON.stringify(pinCacheMap), _USERS_CACHE_TTL);
     return map;
   } catch (err) {
     throw new Error('Gagal load Users map: ' + (err.message || err));
+  } finally {
+    lock.releaseLock();
   }
 }
 
