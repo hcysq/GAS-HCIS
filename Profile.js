@@ -2,9 +2,9 @@
  * Profile (Masterdata) - Robust + Debug
  *************************************************/
 
-function getProfilMasterdataSaya(token) {
+function getProfilMasterdataSaya(request) {
   try {
-    const s = requireLogin_(token);
+    const s = requireLogin_(request);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
     const emailSession = String(s.email || '').trim();
@@ -217,7 +217,7 @@ function normalizeEduField_(fieldKey, isFormal) {
  * DEBUG: panggil ini dari browser / console via google.script.run
  * untuk melihat apa yang kebaca dari Masterdata & session.
  */
-function debugProfilMasterdataSaya(token) {
+function debugProfilMasterdataSaya(request) {
   try {
     const s = requireLogin_(token);
     requireRole(ROLES.ADMIN, token);
@@ -315,9 +315,9 @@ function normalizeNIP_(v) {
  * Profil Users (structured)
  *************************************************/
 
-function getProfilUsersDetail(token) {
+function getProfilUsersDetail(request) {
   try {
-    const s = requireLogin_(token);
+    const s = requireLogin_(request);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
     const nipKey = normalizeNIP_(nipSession);
