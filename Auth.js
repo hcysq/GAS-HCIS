@@ -243,29 +243,21 @@ function readUsersTable_(sheetName) {
   }
 
   const lastCol = sh.getLastColumn();
-  const headerRow = sh
-    .getRange(1, 1, 1, lastCol)
-    .getValues()[0]
-    .map(h => String(h).trim());
-  const numRows = lastRow - 1;
-
-  const columns = neededHeaders.map(name => {
-    const idx = headerRow.indexOf(name);
-    if (idx === -1) {
-      return { name, values: Array(numRows).fill('') };
+  const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const headerRow = values[0].map(h => String(h).trim());
+  const headerIndex = {};
+  headerRow.forEach((name, idx) => {
+    if (name) {
+      headerIndex[name] = idx;
     }
-    const values = sh
-      .getRange(2, idx + 1, numRows, 1)
-      .getValues()
-      .map(row => row[0]);
-    return { name, values };
   });
 
   const rows = [];
-  for (let i = 0; i < numRows; i++) {
+  for (let i = 1; i < values.length; i++) {
     const row = [];
-    for (const col of columns) {
-      row.push(col.values[i]);
+    for (const name of neededHeaders) {
+      const idx = headerIndex[name];
+      row.push(idx === undefined ? '' : values[i][idx]);
     }
     rows.push(row);
   }
