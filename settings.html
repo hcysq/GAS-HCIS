@@ -133,17 +133,15 @@ function settingsSendOTP_(){
 
   settingsSetMsg_('Mengirim OTP ke No_HP…', 'info');
 
-  withToken_(request => {
-    google.script.run.withSuccessHandler(res=>{
-      if (!res || !res.ok){
-        settingsSetMsg_(res?.msg || 'Gagal mengirim OTP.', 'error');
-        return;
-      }
-      SETTINGS_STATE.step = 2;
-      SETTINGS_STATE.lastOtpSentAt = new Date();
-      settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek No_HP.', 'success');
-    }).requestPasswordChange(request, oldPass);
-  });
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'Gagal mengirim OTP.', 'error');
+      return;
+    }
+    SETTINGS_STATE.step = 2;
+    SETTINGS_STATE.lastOtpSentAt = new Date();
+    settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek No_HP.', 'success');
+  }).requestPasswordChange(oldPass);
 }
 
 function settingsVerifyOTP_(){
@@ -153,16 +151,14 @@ function settingsVerifyOTP_(){
 
   settingsSetMsg_('Memverifikasi OTP…', 'info');
 
-  withToken_(request => {
-    google.script.run.withSuccessHandler(res=>{
-      if (!res || !res.ok){
-        settingsSetMsg_(res?.msg || 'OTP tidak valid.', 'error');
-        return;
-      }
-      SETTINGS_STATE.step = 3;
-      settingsSetMsg_('OTP valid. Silakan buat password baru.', 'success');
-    }).verifyPasswordOTP(request, otp);
-  });
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'OTP tidak valid.', 'error');
+      return;
+    }
+    SETTINGS_STATE.step = 3;
+    settingsSetMsg_('OTP valid. Silakan buat password baru.', 'success');
+  }).verifyPasswordOTP(otp);
 }
 
 function settingsUpdatePassword_(){
@@ -184,21 +180,18 @@ function settingsUpdatePassword_(){
 
   settingsSetMsg_('Menyimpan password baru…', 'info');
 
-  withToken_(request => {
-    google.script.run.withSuccessHandler(res=>{
-      if (!res || !res.ok){
-        settingsSetMsg_(res?.msg || 'Gagal mengganti password.', 'error');
-        return;
-      }
-      settingsResetState_();
-      clearSessionToken_();
-      // backend menghapus session → kita arahkan kembali ke login
-      state.me = null;
-      state.route = 'login';
-      nav.classList.add('hidden');
-      btnLogout.classList.add('hidden');
-      renderLogin('Password berhasil diubah. Silakan login ulang.');
-    }).updatePassword(request, p1);
-  });
+  google.script.run.withSuccessHandler(res=>{
+    if (!res || !res.ok){
+      settingsSetMsg_(res?.msg || 'Gagal mengganti password.', 'error');
+      return;
+    }
+    settingsResetState_();
+    // backend menghapus session → kita arahkan kembali ke login
+    state.me = null;
+    state.route = 'login';
+    nav.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+    renderLogin('Password berhasil diubah. Silakan login ulang.');
+  }).updatePassword(p1);
 }
 </script>

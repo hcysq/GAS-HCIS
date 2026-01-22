@@ -18,14 +18,14 @@ const OTP_CACHE_TTL = 30; // detik
 /* ===================== PUBLIC API ===================== */
 
 // STEP 1: Request OTP (cek password lama)
-function requestPasswordChange(request, oldPassword){
+function requestPasswordChange(oldPassword){
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(request);
+    const s = requireLogin_();
     const nip = String(s.nip || '').trim();
     if (!nip) return { ok:false, msg:'Session habis. Silakan login ulang.' };
 
@@ -69,14 +69,14 @@ function requestPasswordChange(request, oldPassword){
 }
 
 // STEP 2: Verifikasi OTP
-function verifyPasswordOTP(request, inputOTP){
+function verifyPasswordOTP(inputOTP){
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(request);
+    const s = requireLogin_();
     const nip = String(s.nip || '').trim();
 
     const ctx = loadUsersPasswordMap_();
@@ -114,14 +114,14 @@ function verifyPasswordOTP(request, inputOTP){
 }
 
 // STEP 3: Set password baru
-function updatePassword(request, newPass){
+function updatePassword(newPass){
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(request);
+    const s = requireLogin_();
     const nip = String(s.nip || '').trim();
 
     if(!validatePassword_(String(newPass||''))){
@@ -146,7 +146,7 @@ function updatePassword(request, newPass){
     });
 
     clearUsersCache_();
-    clearSession_(request);
+    clearSession_();
 
     return { ok:true };
   }catch(e){
@@ -335,3 +335,5 @@ function clearOTPRow_(row, cols){
   if(cols.cEXP !== -1) row[cols.cEXP] = '';
   if(cols.cTRY !== -1) row[cols.cTRY] = '';
 }
+
+

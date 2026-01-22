@@ -144,6 +144,32 @@ function _loadCfgMap_() {
 }
 
 /**
+ * Helper untuk buka Spreadsheet lain berdasarkan konfigurasi ID di HCIS_Config
+ */
+function getSpreadsheetFromConfig_(key, featureName) {
+  const ssId = cfgRequireString(key);
+  try {
+    return SpreadsheetApp.openById(ssId);
+  } catch (e) {
+    const label = featureName || key;
+    const errMsg = e && e.message ? e.message : e;
+    throw new Error(`Gagal membuka spreadsheet ${label} (key ${key} di ${CONFIG_SHEET_CANONICAL}): ${errMsg}`);
+  }
+}
+
+function getAbsensiSpreadsheet_() {
+  return getSpreadsheetFromConfig_('ABSENSI_SS_ID', 'Absensi');
+}
+
+function getWelfareSpreadsheet_() {
+  return getSpreadsheetFromConfig_('WELFARE_SS_ID', 'Kesejahteraan');
+}
+
+function getProjectSpreadsheet_() {
+  return getSpreadsheetFromConfig_('PROJECT_SS_ID', 'Progres Proyek');
+}
+
+/**
  * Validasi key penting (silakan tambah)
  */
 function validateHCISConfig() {
@@ -153,8 +179,9 @@ function validateHCISConfig() {
     'STARSENDER_URL',
     'STARSENDER_APIKEY',
     'STARSENDER_MODE',
-    'USER_GID',
-    'PENDIDIKAN_GID'
+    'ABSENSI_SS_ID',
+    'WELFARE_SS_ID',
+    'PROJECT_SS_ID'
   ];
 
   const missing = [];

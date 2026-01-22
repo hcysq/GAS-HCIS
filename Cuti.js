@@ -1,14 +1,27 @@
 /*************************************************
- * Cuti Management with Role-Based Approval
+ * Cuti
  *************************************************/
 
 function getApproverByNIP(nip) {
-  return getApprovalChain(nip);
+  const t = readTable_(CFG.SHEET_ATASAN);
+  const h = t.headers;
+  const r = t.rows;
+
+  const cNIP = col_(h, 'NIP');
+  const cApp = col_(h, 'ApproverNIP');
+  const cAktif = col_(h, 'Aktif');
+
+  for (const row of r) {
+    if (txt(row[cNIP]) === nip && isTrue_(row[cAktif])) {
+      return txt(row[cApp]);
+    }
+  }
+  return '';
 }
 
-function submitCuti(request, data) {
+function submitCuti(data) {
   try {
-    const s = requireLogin_(request);
+    const s = requireLogin_();
     const sh = getSheet_(CFG.SHEET_CUTI);
     const rowData = [
       Utilities.getUuid(),
