@@ -8,6 +8,39 @@ let state = {
   route: 'login',
 };
 
+const SESSION_TOKEN_KEY = 'HCIS_SESSION_TOKEN';
+const SESSION_TOKEN_COOKIE = 'hcis_session';
+
+function setSessionToken_(token){
+  if (!token) return;
+  localStorage.setItem(SESSION_TOKEN_KEY, token);
+  document.cookie = `${SESSION_TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+}
+
+function clearSessionToken_(){
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+  document.cookie = `${SESSION_TOKEN_COOKIE}=; path=/; Max-Age=0; SameSite=Lax`;
+}
+
+function getCookieValue_(name){
+  const parts = document.cookie.split(';').map(p => p.trim());
+  for (const part of parts) {
+    if (part.startsWith(`${name}=`)) {
+      return decodeURIComponent(part.substring(name.length + 1));
+    }
+  }
+  return '';
+}
+
+function getSessionToken_(){
+  return localStorage.getItem(SESSION_TOKEN_KEY) || getCookieValue_(SESSION_TOKEN_COOKIE) || '';
+}
+
+function withToken_(handler){
+  const token = getSessionToken_();
+  return handler(token);
+}
+
 function isAuthed(){ return !!(state.me && state.me.ok); }
 
 function goto(route){
@@ -23,16 +56,19 @@ function goto(route){
 }
 
 function boot(){
-  google.script.run.withSuccessHandler(res=>{
-    if(!res || !res.ok){
-      state.me=null;
-      state.route='login';
-      renderLogin();
-      return;
-    }
-    state.me=res;
-    goto('dash');
-  }).authMe();
+  withToken_(token => {
+    google.script.run.withSuccessHandler(res=>{
+      if(!res || !res.ok){
+        clearSessionToken_();
+        state.me=null;
+        state.route='login';
+        renderLogin();
+        return;
+      }
+      state.me=res;
+      goto('dash');
+    }).authMe(token);
+  });
 }
 
 /* ===================== LOGIN ===================== */
@@ -202,62 +238,65 @@ function renderDashboard(){
     ` : ''}
   `;
 
-  google.script.run.withSuccessHandler(res=>{
-    if(!res || !res.ok || !res.data) return;
-    const d = res.data;
-    const unit = (d['UNIT']||d['Unit']||'-');
-    const jabatan = (d['JABATAN']||d['JABATAN STRUKTURAL']||d['JABATAN FUNGSIONAL']||'-');
-    const elUnit = document.getElementById('dashUnit');
-    const elJab = document.getElementById('dashJabatan');
-    if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
-    if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
-  }).getProfilMasterdataSaya();
+  withToken_(token => {
+    google.script.run.withSuccessHandler(res=>{
+      if(!res || !res.ok || !res.data) return;
+      const d = res.data;
+      const unit = (d['UNIT']||d['Unit']||'-');
+      const jabatan = (d['JABATAN']||d['JABATAN STRUKTURAL']||d['JABATAN FUNGSIONAL']||'-');
+      const elUnit = document.getElementById('dashUnit');
+      const elJab = document.getElementById('dashJabatan');
+      if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
+      if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
+    }).getProfilMasterdataSaya(token);
+  });
 }
 
 /* ===================== PROFIL ===================== */
 function renderProfil(){
   root.innerHTML = '<div class="card"><div class="muted">Memuat profil...</div></div>';
 
-  google.script.run
-    .withSuccessHandler(res => {
-      if(!res || !res.ok || !res.data) {
-        root.innerHTML = `
-          <div class="card">
-            <div style="color:#ff6b6b;font-weight:800;">Profil tidak dapat dimuat</div>
-            <div class="muted" style="margin-top:6px;">Silakan hubungi admin jika ada masalah.</div>
+  withToken_(token => {
+    google.script.run
+      .withSuccessHandler(res => {
+        if(!res || !res.ok || !res.data) {
+          root.innerHTML = `
+            <div class="card">
+              <div style="color:#ff6b6b;font-weight:800;">Profil tidak dapat dimuat</div>
+              <div class="muted" style="margin-top:6px;">Silakan hubungi admin jika ada masalah.</div>
+            </div>
+          `;
+          return;
+        }
+
+        const d = res.data;
+        const getVal = (keys) => {
+          for (const k of (Array.isArray(keys) ? keys : [keys])) {
+            if (d && d[k] && String(d[k]).trim()) return d[k];
+          }
+          return '-';
+        };
+
+        const render = (label, value) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+            <div class="muted" style="font-size:13px;">${label}</div>
+            <div style="font-weight:700;text-align:right;">${escapeHtml(value || '-')}</div>
           </div>
         `;
-        return;
-      }
 
-      const d = res.data;
-      const getVal = (keys) => {
-        for (const k of (Array.isArray(keys) ? keys : [keys])) {
-          if (d && d[k] && String(d[k]).trim()) return d[k];
-        }
-        return '-';
-      };
-
-      const render = (label, value) => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
-          <div class="muted" style="font-size:13px;">${label}</div>
-          <div style="font-weight:700;text-align:right;">${escapeHtml(value || '-')}</div>
-        </div>
-      `;
-
-      root.innerHTML = `
-        <div class="card">
-          <div style="font-weight:900;font-size:20px;margin-bottom:20px;">Profil Saya</div>
-          
-          <div style="display:grid;gap:24px;">
-            <!-- Ringkasan Kepegawaian -->
-            <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">RINGKASAN KEPEGAWAIAN</div>
-              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
-                ${render('Nama', getVal('Nama'))}
-                ${render('NIP', getVal('NIP'))}
-                ${render('Email', getVal('Email'))}
-                ${render('Unit', getVal('Unit'))}
+        root.innerHTML = `
+          <div class="card">
+            <div style="font-weight:900;font-size:20px;margin-bottom:20px;">Profil Saya</div>
+            
+            <div style="display:grid;gap:24px;">
+              <!-- Ringkasan Kepegawaian -->
+              <div>
+                <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">RINGKASAN KEPEGAWAIAN</div>
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
+                  ${render('Nama', getVal('Nama'))}
+                  ${render('NIP', getVal('NIP'))}
+                  ${render('Email', getVal('Email'))}
+                  ${render('Unit', getVal('Unit'))}
                 ${render('Jabatan', getVal('Jabatan'))}
                 ${render('Status Kepegawaian', getVal('Status_Kepegawaian'))}
                 ${render('Mulai Tugas', getVal('TMT'))}
@@ -310,9 +349,10 @@ function renderProfil(){
             </div>
           </div>
         </div>
-      `;
-    })
-    .getProfilUsersDetail();
+        `;
+      })
+      .getProfilUsersDetail(token);
+  });
 }
 
 /* ===================== PLACEHOLDER ===================== */
@@ -348,16 +388,20 @@ function login(){
 
   google.script.run.withSuccessHandler(res=>{
     if(!res || !res.ok) return renderLogin(res?.msg || 'Login gagal');
+    setSessionToken_(res.token);
     boot();
   }).authLogin(nip, pin);
 }
 function logout(){
-  google.script.run.withSuccessHandler(()=>{
-    if (typeof settingsResetState_ === 'function') settingsResetState_();
-    state.me=null;
-    state.route='login';
-    renderLogin('Anda sudah keluar.');
-  }).authLogout();
+  withToken_(token => {
+    google.script.run.withSuccessHandler(()=>{
+      clearSessionToken_();
+      if (typeof settingsResetState_ === 'function') settingsResetState_();
+      state.me=null;
+      state.route='login';
+      renderLogin('Anda sudah keluar.');
+    }).authLogout(token);
+  });
 }
 
 /* ===================== PEEK PASSWORD ===================== */

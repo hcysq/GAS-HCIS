@@ -54,8 +54,8 @@ function parseRoles_(user) {
  * Get user roles dari session sebagai array
  * @returns {string[]} Array of roles user
  */
-function getUserRoles() {
-  const s = getSession_();
+function getUserRoles(token) {
+  const s = getSession_(token);
   if (!s) return null;
   
   // roles bisa berupa string atau array
@@ -70,8 +70,8 @@ function getUserRoles() {
  * Get user role (single) - backward compatibility
  * @returns {string} Primary role user
  */
-function getUserRole() {
-  const roles = getUserRoles();
+function getUserRole(token) {
+  const roles = getUserRoles(token);
   return roles && roles.length > 0 ? roles[0] : ROLES.PTK;
 }
 
@@ -80,8 +80,8 @@ function getUserRole() {
  * @param {string|string[]} requiredRole - Role atau array of roles
  * @returns {boolean}
  */
-function hasRole(requiredRole) {
-  const userRoles = getUserRoles();
+function hasRole(requiredRole, token) {
+  const userRoles = getUserRoles(token);
   if (!userRoles || userRoles.length === 0) return false;
   
   const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
@@ -92,16 +92,16 @@ function hasRole(requiredRole) {
  * Check apakah user adalah ADMIN
  * @returns {boolean}
  */
-function isAdmin() {
-  return hasRole(ROLES.ADMIN);
+function isAdmin(token) {
+  return hasRole(ROLES.ADMIN, token);
 }
 
 /**
  * Check apakah user adalah KAPLA atau ADMIN
  * @returns {boolean}
  */
-function isManager() {
-  return hasRole([ROLES.KAPLA, ROLES.ADMIN]);
+function isManager(token) {
+  return hasRole([ROLES.KAPLA, ROLES.ADMIN], token);
 }
 
 /**
@@ -109,12 +109,13 @@ function isManager() {
  * @param {string|string[]} requiredRole - Role atau array of roles
  * @throws {Error}
  */
-function requireRole(requiredRole) {
-  const userRole = getUserRole();
-  if (!userRole) throw new Error('SESSION_EXPIRED');
-  
+function requireRole(requiredRole, token) {
+  const userRoles = getUserRoles(token);
+  if (!userRoles || userRoles.length === 0) throw new Error('SESSION_EXPIRED');
+
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-  if (!roles.includes(userRole)) {
+  const hasRequired = roles.some(role => userRoles.includes(role));
+  if (!hasRequired) {
     throw new Error('PERMISSION_DENIED');
   }
 }
@@ -170,11 +171,11 @@ function getSubordinates(managerNip) {
  * - Jika KAPLA/ADMIN: lihat semua cuti dari subordinates yang pending
  * - Jika PTK: tidak ada (regular users tidak approve)
  */
-function getApprovalsPending() {
+function getApprovalsPending(token) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(token);
     
-    if (!isManager()) {
+    if (!isManager(token)) {
       return { ok: true, data: [] }; // PTK tidak punya approvals
     }
 
@@ -227,10 +228,10 @@ function getApprovalsPending() {
  * API: Approve/Reject cuti request
  * Only KAPLA/ADMIN can do this for requests directed to them
  */
-function approveCuti(cutiId, approved, reason = '') {
+function approveCuti(token, cutiId, approved, reason = '') {
   try {
-    const s = requireLogin_();
-    requireRole([ROLES.KAPLA, ROLES.ADMIN]);
+    const s = requireLogin_(token);
+    requireRole([ROLES.KAPLA, ROLES.ADMIN], token);
 
     const cutiSheet = getSheet_(CFG.SHEET_CUTI);
     const headers = cutiSheet.getRange(1, 1, 1, cutiSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
