@@ -65,7 +65,6 @@ function renderLogin(msg=''){
     </div>
   `;
 
-  // Optional: enter to submit
   setTimeout(()=>{
     const pin = document.getElementById('pin');
     if(pin){
@@ -89,10 +88,9 @@ function renderRoute(route){
   if(route==='profil') return renderProfil();
   if(route==='settings'){
     if (typeof settingsResetState_ === 'function') settingsResetState_();
-    return renderSettings(); // <- dari settings.html
+    return renderSettings();
   }
 
-  // placeholders modul
   if(route==='projects') return renderPlaceholder_('Progres Proyek');
   if(route==='absensi') return renderPlaceholder_('Absensi');
   if(route==='welfare') return renderPlaceholder_('Kesejahteraan');
@@ -104,6 +102,9 @@ function renderRoute(route){
 /* ===================== DASHBOARD ===================== */
 function renderDashboard(){
   const me = state.me;
+  const isAdmin = me && me.role === 'ADMIN';
+  const isKapla = me && me.role === 'KAPLA';
+  const isManager = isAdmin || isKapla;
 
   root.innerHTML=`
     <div class="card">
@@ -157,9 +158,30 @@ function renderDashboard(){
         Catatan: detail tiap fitur akan kita isi bertahap setelah CORE stabil.
       </div>
     </div>
+
+    ${isAdmin ? `
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+        <span>⚙️</span> <span>Kelola Admin</span>
+      </div>
+      <div class="muted" style="padding:12px;text-align:center;background:#f5f5f5;border-radius:4px;">
+        Fitur ini akan segera dilengkapi
+      </div>
+    </div>
+    ` : ''}
+
+    ${isKapla ? `
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+        <span>👥</span> <span>Kelola Tim</span>
+      </div>
+      <div class="muted" style="padding:12px;text-align:center;background:#f5f5f5;border-radius:4px;">
+        Fitur ini akan segera dilengkapi
+      </div>
+    </div>
+    ` : ''}
   `;
 
-  // ringan: ambil unit/jabatan dari Masterdata
   google.script.run.withSuccessHandler(res=>{
     if(!res || !res.ok || !res.data) return;
     const d = res.data;
@@ -172,221 +194,68 @@ function renderDashboard(){
   }).getProfilMasterdataSaya();
 }
 
-
-/* ===================== PROFIL BARU ===================== */
+/* ===================== PROFIL ===================== */
 function renderProfil(){
-  root.innerHTML = '<div class="card"><div class="muted">Memuat profil lengkap...</div></div>';
+  root.innerHTML = '<div class="card"><div class="muted">Memuat profil...</div></div>';
 
   google.script.run
     .withSuccessHandler(res => {
       if(!res || !res.ok || !res.data) {
-        const msg = escapeHtml(res?.msg || 'Profil tidak dapat dimuat.');
         root.innerHTML = `
           <div class="card">
-            <div style="color:#c0392b;font-weight:800;">Gagal memuat profil</div>
-            <div class="muted" style="margin-top:6px;">${msg}</div>
-            <div class="muted" style="margin-top:6px;">Data belum tersedia dari hasil pencarian USER_ID dan NIP sesi Anda.</div>
+            <div style="color:#c0392b;font-weight:800;">Profil tidak dapat dimuat</div>
+            <div class="muted" style="margin-top:6px;">Silakan hubungi admin jika ada masalah.</div>
           </div>
         `;
         return;
       }
 
-      const payload = buildProfilPayload_(res.data);
-      renderProfilLayout_(payload);
+      const d = res.data;
+      root.innerHTML = `
+        <div class="card">
+          <div style="font-weight:900;font-size:18px;margin-bottom:12px;">Profil Saya</div>
+          
+          <div style="display:grid;gap:12px;">
+            <div>
+              <div class="muted" style="font-size:12px;">Nama</div>
+              <div style="font-weight:800;font-size:16px;">${escapeHtml(d['NAMA'] || d['Nama'] || '-')}</div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <div class="muted" style="font-size:12px;">NIP</div>
+                <div style="font-weight:800;">${escapeHtml(d['NIP'] || '-')}</div>
+              </div>
+              <div>
+                <div class="muted" style="font-size:12px;">Email</div>
+                <div style="font-weight:800;">${escapeHtml(d['EMAIL'] || d['Email'] || '-')}</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <div class="muted" style="font-size:12px;">Unit/Departemen</div>
+                <div style="font-weight:800;">${escapeHtml(d['UNIT'] || d['Unit'] || d['UNIT KERJA'] || '-')}</div>
+              </div>
+              <div>
+                <div class="muted" style="font-size:12px;">Jabatan</div>
+                <div style="font-weight:800;">${escapeHtml(d['JABATAN'] || d['JABATAN STRUKTURAL'] || '-')}</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="muted" style="font-size:12px;">No. HP</div>
+              <div style="font-weight:800;">${escapeHtml(d['HP'] || d['NO HP'] || d['NO_HP'] || '-')}</div>
+            </div>
+
+            <button class="btn" onclick="goto('settings')" style="margin-top:8px;">Ubah Password</button>
+          </div>
+        </div>
+      `;
     })
-    .getProfilUsersDetail();
+    .getProfilMasterdataSaya();
 }
 
-function buildProfilPayload_(raw){
-  const getVal = (keys)=> pick_(raw, keys);
-  const tmtRaw = getVal(['TMT', 'TMT MASUK', 'TMT_MASUK', 'TMT KERJA']);
-  const ttlRaw = getVal(['TTL']);
-  const tempatLahir = getVal(['TEMPAT LAHIR', 'Tempat Lahir', 'TEMPAT_LAHIR']);
-  const tglLahir = getVal(['TANGGAL LAHIR', 'Tgl Lahir', 'TANGGAL_LAHIR', 'TGL LAHIR', 'TGL_LAHIR', 'DOB']);
-
-  const ttl = ttlRaw || [tempatLahir, formatDateReadable_(tglLahir)].filter(Boolean).join(', ');
-
-  const emergency = {
-    nama: getVal(['KONTAK DARURAT', 'KONTAK DARURAT NAMA', 'KONTAK_DARURAT_NAMA']),
-    hubungan: getVal(['KONTAK DARURAT HUBUNGAN', 'KONTAK_DARURAT_HUBUNGAN', 'Hubungan Darurat']),
-    hp: getVal(['KONTAK DARURAT HP', 'KONTAK_DARURAT_HP', 'HP DARURAT'])
-  };
-
-  return {
-    summary: {
-      nama: getVal(['NAMA', 'Nama']),
-      nip: getVal(['NIP']),
-      unit: getVal(['UNIT', 'Unit', 'UNIT KERJA', 'Unit Kerja']),
-      jabatan: getVal(['JABATAN', 'JABATAN STRUKTURAL', 'JABATAN FUNGSIONAL']),
-      status_kepeg: getVal(['STATUS KEPEGAWAIAN', 'STATUS_KEPEGAWAIAN', 'Status Kepegawaian']),
-      tmt: formatDateReadable_(tmtRaw),
-      masa_kerja: getVal(['MASA KERJA', 'MASA_KERJA']) || computeMasaKerja_(tmtRaw)
-    },
-    contact: {
-      hp: getVal(['HP', 'NO HP', 'NO. HP', 'NO_HP']),
-      wa: getVal(['WA', 'WHATSAPP', 'NO WA']),
-      email: getVal(['EMAIL', 'Email']),
-      alamatKtp: getVal(['ALAMAT KTP', 'Alamat KTP', 'KTP ADDRESS']),
-      domisili: getVal(['DOMISILI', 'Alamat Domisili', 'ALAMAT DOMISILI']),
-      kecamatan: getVal(['KECAMATAN', 'Kecamatan']),
-      kab_kota: getVal(['KAB/KOTA', 'KABUPATEN/KOTA', 'Kota', 'KABUPATEN']),
-      kode_pos: getVal(['KODE POS', 'KODE_POS', 'KODEPOS']),
-      darurat: emergency
-    },
-    personal: {
-      nik: getVal(['NIK']),
-      ttl,
-      gender: getVal(['GENDER', 'JK', 'JENIS KELAMIN', 'Jenis Kelamin']),
-      status_nikah: getVal(['STATUS NIKAH', 'Status Nikah', 'STATUS PERNIKAHAN']),
-      pendidikan_str: getVal(['PENDIDIKAN TERAKHIR', 'Pendidikan Terakhir']),
-      bpjs_kes: getVal(['BPJS KESEHATAN', 'BPJS_KES']),
-      bpjs_tk: getVal(['BPJS KETENAGAKERJAAN', 'BPJS_TK', 'BPJSTK'])
-    },
-    edu_formal: normalizeEduFormal_(getVal(['PENDIDIKAN FORMAL', 'PENDIDIKAN_FORMAL', 'pendFormal', 'EDU_FORMAL'])),
-    edu_nonformal: normalizeEduNonFormal_(getVal(['PENDIDIKAN NONFORMAL', 'PENDIDIKAN NON-FORMAL', 'PENDIDIKAN_NONFORMAL', 'pendNonFormal', 'EDU_NONFORMAL']))
-  };
-}
-
-function normalizeEduFormal_(val){
-  const arr = parseEduArray_(val);
-  return arr.map(x => ({
-    level: x.level || x.jenjang || x.tingkat || '-',
-    nama: x.nama || x.sekolah || x.institusi || '-',
-    jur: x.jur || x.jurusan || '',
-    thn: x.thn || x.tahun || x.year || '',
-    link: x.link || x.url || x.ijazah || ''
-  }));
-}
-
-function normalizeEduNonFormal_(val){
-  const arr = parseEduArray_(val);
-  return arr.map(x => ({
-    nama: x.nama || x.pelatihan || x.program || '-',
-    thn: x.thn || x.tahun || x.year || '',
-    link: x.link || x.url || x.sertifikat || ''
-  }));
-}
-
-function parseEduArray_(val){
-  if (Array.isArray(val)) return val.filter(Boolean);
-  if (typeof val === 'string' && val.trim()){
-    try{
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    }catch(e){ /* ignore */ }
-  }
-  return [];
-}
-
-function formatDateReadable_(val){
-  try{
-    if(!val) return '';
-    const dt = new Date(val);
-    if (isNaN(dt)) return String(val || '');
-    return dt.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
-  }catch(e){
-    return String(val || '');
-  }
-}
-
-function renderProfilLayout_(d){
-  const fallbackNotice = '<span class="muted">-</span>';
-  const item = (lbl, val) => `
-    <div style="display:flex; gap:12px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #f0f0f0;">
-      <div style="flex:1; color:#666; font-size:13px;">${escapeHtml(lbl)}</div>
-      <div style="flex:1.5; font-weight:700; text-align:right;">${val || '-'}</div>
-    </div>`;
-
-  const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '-';
-
-  const emergency = d.contact.darurat || {};
-  const daruratNama = escapeHtml(emergency.nama || '-');
-  const daruratHub = escapeHtml(emergency.hubungan || '-');
-  const daruratHp = escapeHtml(emergency.hp || '-');
-
-  const domisiliParts = [d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota, d.contact.kode_pos].filter(Boolean);
-  const domisiliStr = domisiliParts.length ? escapeHtml(domisiliParts.join(', ')) : '-';
-  const domisiliOnly = escapeHtml(d.contact.domisili || '-');
-  const kecamatan = escapeHtml(d.contact.kecamatan || '-');
-  const kabKota = escapeHtml(d.contact.kab_kota || '-');
-  const kodePos = escapeHtml(d.contact.kode_pos || '-');
-
-  const rowsFormal = (d.edu_formal || []).map(x => `
-    <tr>
-      <td style="font-weight:700;">${escapeHtml(x.level || '-')}</td>
-      <td>${escapeHtml(x.nama || '-')}</td>
-      <td style="text-align:center;">${escapeHtml(x.thn || '-')}</td>
-      <td style="text-align:center;">${linkIcon(x.link)}</td>
-    </tr>
-  `).join('');
-
-  const rowsNon = (d.edu_nonformal || []).map(x => `
-    <tr>
-      <td>${escapeHtml(x.nama || '-')}</td>
-      <td style="text-align:center;">${escapeHtml(x.thn || '-')}</td>
-      <td style="text-align:center;">${linkIcon(x.link)}</td>
-    </tr>
-  `).join('');
-
-  root.innerHTML = `
-    <div class="card">
-      <div style="font-weight:900; font-size:18px; margin-bottom:10px; color:#2c3e50;">Profil Karyawan</div>
-      <div style="display:flex; flex-direction:column; gap:14px;">
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Ringkasan Kepegawaian</div>
-          ${item('Nama', escapeHtml(d.summary.nama || '-') )}
-          ${item('NIP', escapeHtml(d.summary.nip || '-') )}
-          ${item('Unit', escapeHtml(d.summary.unit || '-') )}
-          ${item('Jabatan', escapeHtml(d.summary.jabatan || '-') )}
-          ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-') )}
-          ${item('TMT', escapeHtml(d.summary.tmt || '-') )}
-          ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-') )}
-        </div>
-
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Data Pribadi</div>
-          ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
-          ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
-          ${item('Gender', escapeHtml(d.personal.gender || '-') )}
-          ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-') )}
-          ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-') )}
-          ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-') )}
-          ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
-        </div>
-
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Kontak & Alamat</div>
-          ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
-          ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
-          ${item('Email', escapeHtml(d.contact.email || '-') )}
-          ${item('Alamat KTP', escapeHtml(d.contact.alamatKtp || '-') )}
-          ${item('Alamat Domisili', domisiliOnly)}
-          ${item('Kecamatan Domisili', kecamatan)}
-          ${item('Kab/Kota Domisili', kabKota)}
-          ${item('Kode Pos Domisili', kodePos)}
-          ${item('Domisili (Ringkas)', domisiliStr)}
-          ${item('Kontak Darurat - Nama', daruratNama)}
-          ${item('Kontak Darurat - Hubungan', daruratHub)}
-          ${item('Kontak Darurat - HP', daruratHp)}
-        </div>
-
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Riwayat Pendidikan</div>
-          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Formal</div>
-          <table style="width:100%; font-size:13px; border-collapse:collapse; margin-bottom:10px;">
-            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Jenjang</th><th>Nama</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Ijazah</th></tr>
-            ${rowsFormal || `<tr><td colspan="4" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
-          </table>
-
-          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Non-Formal</div>
-          <table style="width:100%; font-size:13px; border-collapse:collapse;">
-            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Pelatihan</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Sertifikat</th></tr>
-            ${rowsNon || `<tr><td colspan="3" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
-          </table>
-        </div>
-      </div>
-    </div>`;
-}
 /* ===================== PLACEHOLDER ===================== */
 function renderPlaceholder_(title){
   root.innerHTML = `
@@ -447,44 +316,6 @@ function escapeHtml(str){
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',
     "'":'&#39;','`':'&#x60;','=':'&#x3D;','/':'&#x2F;'
   }[s]));
-}
-function kv(label, value){
-  return `
-    <div style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;">
-      <div style="flex:0 0 160px;max-width:160px;" class="muted">${escapeHtml(label)}</div>
-      <div style="flex:1;font-weight:800;color:rgba(255,255,255,.92);">${escapeHtml(value ?? '-')}</div>
-    </div>
-  `;
-}
-function pick_(obj, keys){
-  for (const k of keys){
-    if (obj && Object.prototype.hasOwnProperty.call(obj, k)){
-      const v = obj[k];
-      if (v !== null && v !== undefined && String(v).trim() !== '') return v;
-    }
-  }
-  return '';
-}
-function maskNIK_(nik){
-  const s = String(nik).replace(/\s+/g,'').trim();
-  if (s.length <= 4) return s;
-  return '****-****-****-' + s.slice(-4);
-}
-function computeMasaKerja_(tmtVal){
-  try{
-    if(!tmtVal) return '-';
-    const dt = new Date(tmtVal);
-    if (isNaN(dt.getTime())) return '-';
-    const now = new Date();
-    let years = now.getFullYear() - dt.getFullYear();
-    let months = now.getMonth() - dt.getMonth();
-    if (months < 0){ years -= 1; months += 12; }
-    if (years < 0) return '-';
-    if (years === 0) return `${months} bulan`;
-    return `${years} tahun ${months} bulan`;
-  }catch(e){
-    return '-';
-  }
 }
 
 boot();
