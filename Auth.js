@@ -51,15 +51,14 @@ function authLogin(nip, pin) {
       return { ok:false, msg:'NIP atau password salah.' };
     }
 
-    // Parse multiple roles (format: "PTK" atau "PTK,ADMIN,KAPLA")
-    const rolesStr = user.role || 'PTK';
-    const roleArray = parseRoles_(rolesStr);
+    // Parse multiple roles dari kolom boolean (PTK, KAPLA, ADMIN)
+    const roleArray = parseRoles_(user);
 
     setSession_({
       nip,
       nama: user.nama || '',
       roles: roleArray,
-      role: rolesStr,  // Keep original string for backward compatibility
+      role: roleArray.join(','),  // Convert array to string
       email: user.email || '',
       userId: user.userId || ''
     });

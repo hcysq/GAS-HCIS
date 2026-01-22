@@ -21,21 +21,32 @@ const ROLE_LABELS = {
 };
 
 /**
- * Parse role string menjadi array
- * @param {string} roleStr - Role string (format: "PTK" atau "PTK,ADMIN,KAPLA")
+ * Parse user role object menjadi array roles
+ * @param {object} user - User object dengan properti ptk, kapla, admin (boolean/string)
  * @returns {string[]} Array of roles
  */
-function parseRoles_(roleStr) {
-  if (!roleStr) return [ROLES.PTK];
-  const roles = String(roleStr)
-    .split(/[,;|]/)  // Split by comma, semicolon, or pipe
-    .map(r => String(r).trim().toUpperCase())
-    .filter(r => r && Object.values(ROLES).includes(r));
+function parseRoles_(user) {
+  if (!user) return [ROLES.PTK];
   
-  // Ensure PTK is always included
-  if (!roles.includes(ROLES.PTK)) {
-    roles.unshift(ROLES.PTK);
+  const roles = [];
+  
+  // PTK selalu included
+  roles.push(ROLES.PTK);
+  
+  // Check KAPLA
+  if (user.kapla || user.KAPLA) {
+    if (!roles.includes(ROLES.KAPLA)) {
+      roles.push(ROLES.KAPLA);
+    }
   }
+  
+  // Check ADMIN
+  if (user.admin || user.ADMIN) {
+    if (!roles.includes(ROLES.ADMIN)) {
+      roles.push(ROLES.ADMIN);
+    }
+  }
+  
   return roles;
 }
 
