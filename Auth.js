@@ -1,5 +1,5 @@
 const _USERS_CACHE_KEY = 'HCIS_USERS_MAP_V1';
-const _USERS_CACHE_TTL = 300; // detik
+const _USERS_CACHE_TTL = 600; // detik
 const _USERS_PASSWORD_CACHE_KEY = 'HCIS_USERS_PASSMAP_V1';
 
 /*************************************************
@@ -107,7 +107,7 @@ function loadUsersMap_() {
       }
     }
 
-    const t = readTable_(CFG.SHEET_USERS);
+    const t = readUsersTable_(CFG.SHEET_USERS);
     const h = t.headers;
     const r = t.rows;
 
@@ -177,6 +177,45 @@ function loadUsersMap_() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function readUsersTable_(sheetName) {
+  const neededHeaders = ['NIP', 'PIN', 'Aktif', 'Nama', 'Role', 'Email', 'USER_ID'];
+  const sh = getSheet_(sheetName);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) {
+    return { headers: neededHeaders, rows: [] };
+  }
+
+  const lastCol = sh.getLastColumn();
+  const headerRow = sh
+    .getRange(1, 1, 1, lastCol)
+    .getValues()[0]
+    .map(h => String(h).trim());
+  const numRows = lastRow - 1;
+
+  const columns = neededHeaders.map(name => {
+    const idx = headerRow.indexOf(name);
+    if (idx === -1) {
+      return { name, values: Array(numRows).fill('') };
+    }
+    const values = sh
+      .getRange(2, idx + 1, numRows, 1)
+      .getValues()
+      .map(row => row[0]);
+    return { name, values };
+  });
+
+  const rows = [];
+  for (let i = 0; i < numRows; i++) {
+    const row = [];
+    for (const col of columns) {
+      row.push(col.values[i]);
+    }
+    rows.push(row);
+  }
+
+  return { headers: neededHeaders, rows };
 }
 
 function clearUsersCache_() {
