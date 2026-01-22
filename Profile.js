@@ -350,7 +350,7 @@ function getProfilUsersDetail(request) {
 function getUsersSheetByConfig_() {
   try {
     const ss = SpreadsheetApp.getActive();
-    const gidRaw = cfgGet('USER_GID', '');
+    const gidRaw = cfgGet('USER_GID', '') || cfgGet('USERS_GID', '');
     const gid = Number(gidRaw);
     if (!isNaN(gid) && gid > 0) {
       const byId = ss.getSheets().find(sh => sh.getSheetId() === gid);
