@@ -72,9 +72,12 @@ function authLogin(nip, pin) {
 }
 
 function authMe(token) {
-  const s = getSession_(token);
-  if (!s) return { ok:false };
-  return { ok:true, ...s };
+  try {
+    const s = requireLogin_(token);
+    return { ok:true, ...s };
+  } catch (e) {
+    return { ok:false };
+  }
 }
 
 function authLogout(token) {

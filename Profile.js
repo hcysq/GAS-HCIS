@@ -220,6 +220,7 @@ function normalizeEduField_(fieldKey, isFormal) {
 function debugProfilMasterdataSaya(token) {
   try {
     const s = requireLogin_(token);
+    requireRole(ROLES.ADMIN, token);
     const nipSession = String(s.nip || '').trim();
     const nipKey = normalizeNIP_(nipSession);
 
