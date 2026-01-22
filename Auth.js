@@ -71,14 +71,14 @@ function authLogin(nip, pin) {
   }
 }
 
-function authMe(token) {
-  const s = getSession_(token);
+function authMe(request) {
+  const s = getSession_(request);
   if (!s) return { ok:false };
   return { ok:true, ...s };
 }
 
-function authLogout(token) {
-  clearSession_(token);
+function authLogout(request) {
+  clearSession_(request);
   return { ok:true };
 }
 

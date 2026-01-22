@@ -133,7 +133,7 @@ function settingsSendOTP_(){
 
   settingsSetMsg_('Mengirim OTP ke No_HP…', 'info');
 
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
       if (!res || !res.ok){
         settingsSetMsg_(res?.msg || 'Gagal mengirim OTP.', 'error');
@@ -142,7 +142,7 @@ function settingsSendOTP_(){
       SETTINGS_STATE.step = 2;
       SETTINGS_STATE.lastOtpSentAt = new Date();
       settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek No_HP.', 'success');
-    }).requestPasswordChange(token, oldPass);
+    }).requestPasswordChange(request, oldPass);
   });
 }
 
@@ -153,7 +153,7 @@ function settingsVerifyOTP_(){
 
   settingsSetMsg_('Memverifikasi OTP…', 'info');
 
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
       if (!res || !res.ok){
         settingsSetMsg_(res?.msg || 'OTP tidak valid.', 'error');
@@ -161,7 +161,7 @@ function settingsVerifyOTP_(){
       }
       SETTINGS_STATE.step = 3;
       settingsSetMsg_('OTP valid. Silakan buat password baru.', 'success');
-    }).verifyPasswordOTP(token, otp);
+    }).verifyPasswordOTP(request, otp);
   });
 }
 
@@ -184,7 +184,7 @@ function settingsUpdatePassword_(){
 
   settingsSetMsg_('Menyimpan password baru…', 'info');
 
-  withToken_(token => {
+  withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
       if (!res || !res.ok){
         settingsSetMsg_(res?.msg || 'Gagal mengganti password.', 'error');
@@ -198,7 +198,7 @@ function settingsUpdatePassword_(){
       nav.classList.add('hidden');
       btnLogout.classList.add('hidden');
       renderLogin('Password berhasil diubah. Silakan login ulang.');
-    }).updatePassword(token, p1);
+    }).updatePassword(request, p1);
   });
 }
 </script>
