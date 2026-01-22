@@ -3,6 +3,7 @@
  *************************************************/
 
 const SESSION_KEY_PREFIX = 'SESSION:';
+const SESSION_INDEX_KEY = 'SESSION_INDEX_V1';
 
 function buildSessionKey_(token) {
   return `${SESSION_KEY_PREFIX}${token}`;
@@ -59,6 +60,8 @@ function setSession_(user) {
   const payload = JSON.stringify(sessionPayload);
   CacheService.getScriptCache().put(key, payload, ttlSeconds);
   PropertiesService.getScriptProperties().setProperty(key, payload);
+  trackSessionKey_(key, expiresAt);
+  maybeCleanupSessions_();
 
   return token;
 }
@@ -69,6 +72,7 @@ function clearSession_(request) {
   const key = buildSessionKey_(token);
   CacheService.getScriptCache().remove(key);
   PropertiesService.getScriptProperties().deleteProperty(key);
+  removeSessionKey_(key);
 }
 
 function getSession_(request) {
@@ -98,6 +102,8 @@ function getSession_(request) {
       cache.put(key, payload, ttlSeconds);
     }
 
+    maybeCleanupSessions_();
+
     const { expiresAt: _expiresAt, ...session } = data;
     return session;
   } catch (e) {
@@ -111,4 +117,67 @@ function requireLogin_(request) {
   const s = getSession_(request);
   if (!s) throw new Error('SESSION_EXPIRED');
   return s;
+}
+
+function removeSessionKey_(key) {
+  const index = getSessionIndex_();
+  if (!index[key]) return;
+  delete index[key];
+  saveSessionIndex_(index);
+}
+
+function trackSessionKey_(key, expiresAt) {
+  const index = getSessionIndex_();
+  index[key] = expiresAt;
+  if (Object.keys(index).length > 500) {
+    cleanupSessions_(index);
+    return;
+  }
+  saveSessionIndex_(index);
+}
+
+function maybeCleanupSessions_() {
+  const chance = Math.random();
+  if (chance > 0.03) return;
+  cleanupSessions_(getSessionIndex_());
+}
+
+function getSessionIndex_() {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(SESSION_INDEX_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    Logger.log('Error parsing session index: ' + (e.message || e));
+    return {};
+  }
+}
+
+function saveSessionIndex_(index) {
+  PropertiesService.getScriptProperties().setProperty(
+    SESSION_INDEX_KEY,
+    JSON.stringify(index)
+  );
+}
+
+function cleanupSessions_(index) {
+  const now = Date.now();
+  let changed = false;
+  const props = PropertiesService.getScriptProperties();
+  const cache = CacheService.getScriptCache();
+
+  Object.entries(index).forEach(([key, expiresAt]) => {
+    if (!expiresAt || now > Number(expiresAt)) {
+      cache.remove(key);
+      props.deleteProperty(key);
+      delete index[key];
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveSessionIndex_(index);
+  }
 }

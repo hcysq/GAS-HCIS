@@ -240,15 +240,15 @@ function renderDashboard(){
 
   withToken_(request => {
     google.script.run.withSuccessHandler(res=>{
-      if(!res || !res.ok || !res.data) return;
-      const d = res.data;
-      const unit = (d['UNIT']||d['Unit']||'-');
-      const jabatan = (d['JABATAN']||d['JABATAN STRUKTURAL']||d['JABATAN FUNGSIONAL']||'-');
+      if(!res || !res.ok || !res.data || !res.data.profile) return;
+      const d = res.data.profile;
+      const unit = d.Unit || '-';
+      const jabatan = d.Jabatan || '-';
       const elUnit = document.getElementById('dashUnit');
       const elJab = document.getElementById('dashJabatan');
       if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
       if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
-    }).getProfilMasterdataSaya(request);
+    }).getProfilUsersDetail(request);
   });
 }
 
@@ -269,83 +269,127 @@ function renderProfil(){
           return;
         }
 
-        const d = res.data;
+        const profile = res.data.profile || {};
+        const pendidikan = Array.isArray(res.data.pendidikan) ? res.data.pendidikan : [];
         const getVal = (keys) => {
           for (const k of (Array.isArray(keys) ? keys : [keys])) {
-            if (d && d[k] && String(d[k]).trim()) return d[k];
+            if (profile && profile[k] && String(profile[k]).trim()) return profile[k];
           }
           return '-';
         };
 
         const render = (label, value) => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
-            <div class="muted" style="font-size:13px;">${label}</div>
-            <div style="font-weight:700;text-align:right;">${escapeHtml(value || '-')}</div>
+          <div class="profile-field">
+            <div class="profile-label">${label}</div>
+            <div class="profile-value">${escapeHtml(value || '-')}</div>
           </div>
         `;
 
+        const renderPendidikan = () => {
+          if (!pendidikan.length) {
+            return `<div class="profile-empty">Belum ada data pendidikan.</div>`;
+          }
+
+          return `
+            <div class="profile-edu">
+              ${pendidikan.map((row) => `
+                <div class="profile-edu-card">
+                  <div class="profile-edu-title">${escapeHtml(row.Jenjang || '-')}${row.Kategori_Pendidikan ? ` • ${escapeHtml(row.Kategori_Pendidikan)}` : ''}</div>
+                  <div class="profile-edu-body">
+                    ${render('Institusi', row.Nama_Institusi)}
+                    ${render('Jurusan/Peminatan', row.Jurusan_Peminatan)}
+                    ${render('Tahun Masuk', row.Tahun_Masuk)}
+                    ${render('Tahun Lulus', row.Tahun_Lulus)}
+                    ${render('No Ijazah', row.No_Ijazah)}
+                    ${render('NISN/NIM', row.NISN_NIM)}
+                    ${render('Kota', row.Kota)}
+                    ${render('Link Ijazah', row.Link_Ijazah)}
+                    ${render('Link Transkrip/SKHUN', row.Link_Transkrip_SKHUN)}
+                    ${render('Keterangan', row.Keterangan)}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        };
+
         root.innerHTML = `
-          <div class="card">
-            <div style="font-weight:900;font-size:20px;margin-bottom:20px;">Profil Saya</div>
+          <div class="card profile-card">
+            <div class="profile-title">Profil Saya</div>
             
             <div style="display:grid;gap:24px;">
               <!-- Ringkasan Kepegawaian -->
               <div>
-                <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">RINGKASAN KEPEGAWAIAN</div>
-                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
+                <div class="profile-section-title">RINGKASAN KEPEGAWAIAN</div>
+                <div class="profile-section">
                   ${render('Nama', getVal('Nama'))}
                   ${render('NIP', getVal('NIP'))}
                   ${render('Email', getVal('Email'))}
                   ${render('Unit', getVal('Unit'))}
-                ${render('Jabatan', getVal('Jabatan'))}
-                ${render('Status Kepegawaian', getVal('Status_Kepegawaian'))}
-                ${render('Mulai Tugas', getVal('TMT'))}
+                  ${render('Jabatan', getVal('Jabatan'))}
+                  ${render('Status Kepegawaian', getVal('Status_Kepegawaian'))}
+                  ${render('TMT Pegawai', getVal('TMT_Pegawai'))}
+                  ${render('Masa Kerja', getVal('Masa_Kerja'))}
+                  ${render('Role', getVal('Role'))}
+                  ${render('Status Aktif', getVal('Aktif'))}
               </div>
             </div>
 
             <!-- Data Pribadi -->
             <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">DATA PRIBADI</div>
-              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
+              <div class="profile-section-title">DATA PRIBADI</div>
+              <div class="profile-section">
                 ${render('Tempat Lahir', getVal('Tempat_Lahir'))}
                 ${render('Tanggal Lahir', getVal('Tanggal_Lahir'))}
                 ${render('Jenis Kelamin', getVal('Jenis_Kelamin'))}
-                ${render('Status Perkawinan', getVal('Status_Perkawinan'))}
+                ${render('Status Pernikahan', getVal('Status_Pernikahan'))}
                 ${render('Pendidikan Terakhir', getVal('Pendidikan_Terakhir'))}
+                ${render('Gelar Akademik Depan', getVal('Gelar_Akademik_Depan'))}
+                ${render('Gelar Akademik Belakang', getVal('Gelar_Akademik_Belakang'))}
+                ${render('Ayah Kandung', getVal('Ayah_Kandung'))}
+                ${render('Ibu Kandung', getVal('Ibu_Kandung'))}
+                ${render('No. KK', getVal('No_KK'))}
               </div>
             </div>
 
             <!-- Kontak -->
             <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">KONTAK</div>
-              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
-                ${render('Nomor HP', getVal('No_HP'))}
-                ${render('WhatsApp', getVal('No_WA'))}
-                ${render('Alamat KTP', getVal('Alamat_KTP'))}
-                ${render('Alamat Domisili', getVal('Alamat_Domisili'))}
+              <div class="profile-section-title">KONTAK</div>
+              <div class="profile-section">
+                ${render('Nomor HP/WA', getVal('No_HP'))}
+                ${render('Alamat', getVal('Alamat'))}
+                ${render('Kelurahan/Desa', getVal('Kelurahan_Desa'))}
                 ${render('Kecamatan', getVal('Kecamatan'))}
-                ${render('Kota/Kabupaten', getVal('Kota_Kabupaten'))}
+                ${render('Kabupaten/Kota', getVal('Kabupaten_Kota'))}
                 ${render('Kode Pos', getVal('Kode_Pos'))}
               </div>
             </div>
 
             <!-- Kontak Darurat -->
             <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">KONTAK DARURAT</div>
-              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
+              <div class="profile-section-title">KONTAK DARURAT</div>
+              <div class="profile-section">
                 ${render('Nama', getVal('Kontak_Darurat_Nama'))}
                 ${render('Hubungan', getVal('Kontak_Darurat_Hubungan'))}
-                ${render('Nomor HP', getVal('Kontak_Darurat_HP'))}
+                ${render('Nomor HP/WA', getVal('Kontak_Darurat_HP_WA'))}
               </div>
             </div>
 
-            <!-- BPJS -->
+            <!-- Administrasi -->
             <div>
-              <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">ASURANSI & KESEJAHTERAAN</div>
-              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;">
-                ${render('BPJS Kesehatan', getVal('No_BPJS_Kesehatan'))}
-                ${render('BPJS Ketenagakerjaan', getVal('No_BPJS_Ketenagakerjaan'))}
+              <div class="profile-section-title">ADMINISTRASI</div>
+              <div class="profile-section">
+                ${render('BPJS Kesehatan', getVal('BPJS_Kesehatan'))}
+                ${render('BPJS Ketenagakerjaan', getVal('BPJS_Ketenagakerjaan'))}
+                ${render('Status PTKP', getVal('Status_PTKP'))}
+                ${render('No. Rekening Bank', getVal('No._Rekening'))}
               </div>
+            </div>
+
+            <!-- Pendidikan -->
+            <div>
+              <div class="profile-section-title">RIWAYAT PENDIDIKAN</div>
+              ${renderPendidikan()}
             </div>
           </div>
         </div>
