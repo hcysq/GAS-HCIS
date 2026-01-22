@@ -6,9 +6,9 @@ function getApproverByNIP(nip) {
   return getApprovalChain(nip);
 }
 
-function submitCuti(data) {
+function submitCuti(token, data) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(token);
     const sh = getSheet_(CFG.SHEET_CUTI);
     const rowData = [
       Utilities.getUuid(),

@@ -54,7 +54,7 @@ function authLogin(nip, pin) {
     // Parse multiple roles dari kolom boolean (PTK, KAPLA, ADMIN)
     const roleArray = parseRoles_(user);
 
-    setSession_({
+    const token = setSession_({
       nip,
       nama: user.nama || '',
       roles: roleArray,
@@ -64,21 +64,21 @@ function authLogin(nip, pin) {
     });
     
     Logger.log('Login berhasil untuk NIP: ' + nip + ' dengan roles: ' + roleArray.join(', '));
-    return { ok:true };
+    return { ok:true, token };
   } catch (err) {
     Logger.log('Error di authLogin: ' + (err.message || err));
     return { ok:false, msg:'Error: ' + (err.message || err) };
   }
 }
 
-function authMe() {
-  const s = getSession_();
+function authMe(token) {
+  const s = getSession_(token);
   if (!s) return { ok:false };
   return { ok:true, ...s };
 }
 
-function authLogout() {
-  clearSession_();
+function authLogout(token) {
+  clearSession_(token);
   return { ok:true };
 }
 
