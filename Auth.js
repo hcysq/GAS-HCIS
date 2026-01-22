@@ -71,10 +71,13 @@ function authLogin(nip, pin) {
   }
 }
 
-function authMe(request) {
-  const s = getSession_(request);
-  if (!s) return { ok:false };
-  return { ok:true, ...s };
+function authMe(token) {
+  try {
+    const s = requireLogin_(token);
+    return { ok:true, ...s };
+  } catch (e) {
+    return { ok:false };
+  }
 }
 
 function authLogout(request) {
