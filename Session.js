@@ -61,6 +61,7 @@ function setSession_(user) {
   CacheService.getScriptCache().put(key, payload, ttlSeconds);
   PropertiesService.getScriptProperties().setProperty(key, payload);
   trackSessionKey_(key, expiresAt);
+  maybeCleanupSessions_();
 
   return token;
 }
@@ -101,6 +102,8 @@ function getSession_(request) {
       cache.put(key, payload, ttlSeconds);
     }
 
+    maybeCleanupSessions_();
+
     const { expiresAt: _expiresAt, ...session } = data;
     return session;
   } catch (e) {
@@ -131,6 +134,12 @@ function trackSessionKey_(key, expiresAt) {
     return;
   }
   saveSessionIndex_(index);
+}
+
+function maybeCleanupSessions_() {
+  const chance = Math.random();
+  if (chance > 0.03) return;
+  cleanupSessions_(getSessionIndex_());
 }
 
 function getSessionIndex_() {
