@@ -247,10 +247,12 @@ function formatDateReadable_(val){
 
 function renderProfilLayout_(d){
   const fallbackNotice = '<span class="muted">-</span>';
+  
+  // Updated styling untuk konsistensi dengan Dashboard
   const item = (lbl, val) => `
-    <div style="display:flex; gap:12px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #f0f0f0;">
-      <div style="flex:1; color:#666; font-size:13px;">${escapeHtml(lbl)}</div>
-      <div style="flex:1.5; font-weight:700; text-align:right;">${val || '-'}</div>
+    <div style="display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.08);">
+      <div style="flex:1; color:rgba(255,255,255,.70); font-size:13px; font-weight:500;">${escapeHtml(lbl)}</div>
+      <div style="flex:1.5; font-weight:600; text-align:right; color:rgba(255,255,255,.92);">${val || '-'}</div>
     </div>`;
 
   const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '-';
@@ -267,28 +269,29 @@ function renderProfilLayout_(d){
   const kodePos = escapeHtml(d.contact.kode_pos || '-');
 
   const rowsFormal = (d.edu_formal || []).map(x => `
-    <tr>
-      <td style="font-weight:700;">${escapeHtml(x.level || '-')}</td>
-      <td>${escapeHtml(x.nama || '-')}</td>
-      <td style="text-align:center;">${escapeHtml(x.thn || '-')}</td>
-      <td style="text-align:center;">${linkIcon(x.link)}</td>
+    <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+      <td style="font-weight:600; color:rgba(255,255,255,.92); padding:10px 0;">${escapeHtml(x.level || '-')}</td>
+      <td style="color:rgba(255,255,255,.85); padding:10px 0;">${escapeHtml(x.nama || '-')}</td>
+      <td style="text-align:center; color:rgba(255,255,255,.80); padding:10px 0;">${escapeHtml(x.thn || '-')}</td>
+      <td style="text-align:center; padding:10px 0;">${linkIcon(x.link)}</td>
     </tr>
   `).join('');
 
   const rowsNon = (d.edu_nonformal || []).map(x => `
-    <tr>
-      <td>${escapeHtml(x.nama || '-')}</td>
-      <td style="text-align:center;">${escapeHtml(x.thn || '-')}</td>
-      <td style="text-align:center;">${linkIcon(x.link)}</td>
+    <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+      <td style="color:rgba(255,255,255,.85); padding:10px 0;">${escapeHtml(x.nama || '-')}</td>
+      <td style="text-align:center; color:rgba(255,255,255,.80); padding:10px 0;">${escapeHtml(x.thn || '-')}</td>
+      <td style="text-align:center; padding:10px 0;">${linkIcon(x.link)}</td>
     </tr>
   `).join('');
 
   root.innerHTML = `
     <div class="card">
-      <div style="font-weight:900; font-size:18px; margin-bottom:10px; color:#2c3e50;">Profil Karyawan</div>
-      <div style="display:flex; flex-direction:column; gap:14px;">
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Ringkasan Kepegawaian</div>
+      <div style="font-weight:900; font-size:18px; margin-bottom:16px; color:rgba(255,255,255,.96);">Profil Karyawan</div>
+      <div style="display:flex; flex-direction:column; gap:18px;">
+        
+        <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+          <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Ringkasan Kepegawaian</div>
           ${item('Nama', escapeHtml(d.summary.nama || '-') )}
           ${item('NIP', escapeHtml(d.summary.nip || '-') )}
           ${item('Unit', escapeHtml(d.summary.unit || '-') )}
@@ -298,8 +301,8 @@ function renderProfilLayout_(d){
           ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-') )}
         </div>
 
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Data Pribadi</div>
+        <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+          <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Data Pribadi</div>
           ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
           ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
           ${item('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-') )}
@@ -316,8 +319,8 @@ function renderProfilLayout_(d){
           ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
         </div>
 
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Kontak & Alamat</div>
+        <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+          <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Kontak & Alamat</div>
           ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
           ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
           ${item('Email', escapeHtml(d.contact.email || '-') )}
@@ -331,18 +334,28 @@ function renderProfilLayout_(d){
           ${item('Kontak Darurat - HP', daruratHp)}
         </div>
 
-        <div>
-          <div style="font-weight:800; margin-bottom:6px;">Riwayat Pendidikan</div>
-          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Formal</div>
-          <table style="width:100%; font-size:13px; border-collapse:collapse; margin-bottom:10px;">
-            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Jenjang</th><th>Nama</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Ijazah</th></tr>
-            ${rowsFormal || `<tr><td colspan="4" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
+        <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+          <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Riwayat Pendidikan</div>
+          
+          <div style="margin-bottom:12px; font-weight:600; color:rgba(255,255,255,.85); font-size:13px;">Formal</div>
+          <table style="width:100%; font-size:13px; border-collapse:collapse; margin-bottom:14px;">
+            <tr style="text-align:left; color:rgba(255,255,255,.75); border-bottom:1px solid rgba(255,255,255,.12); font-size:12px; font-weight:600;">
+              <th style="padding:8px 0;">Jenjang</th>
+              <th style="padding:8px 0;">Nama</th>
+              <th style="text-align:center; padding:8px 0;">Tahun</th>
+              <th style="text-align:center; padding:8px 0;">Ijazah</th>
+            </tr>
+            ${rowsFormal || `<tr><td colspan="4" style="text-align:center; padding:12px 0; color:rgba(255,255,255,.60);">${fallbackNotice}</td></tr>`}
           </table>
 
-          <div style="margin-bottom:6px; font-weight:700; color:#2c3e50;">Non-Formal</div>
+          <div style="margin-bottom:12px; font-weight:600; color:rgba(255,255,255,.85); font-size:13px;">Non-Formal</div>
           <table style="width:100%; font-size:13px; border-collapse:collapse;">
-            <tr style="text-align:left; color:#888; border-bottom:1px solid #eee;"><th>Pelatihan</th><th style="text-align:center;">Tahun</th><th style="text-align:center;">Sertifikat</th></tr>
-            ${rowsNon || `<tr><td colspan="3" style="text-align:center; padding:8px 0;">${fallbackNotice}</td></tr>`}
+            <tr style="text-align:left; color:rgba(255,255,255,.75); border-bottom:1px solid rgba(255,255,255,.12); font-size:12px; font-weight:600;">
+              <th style="padding:8px 0;">Pelatihan</th>
+              <th style="text-align:center; padding:8px 0;">Tahun</th>
+              <th style="text-align:center; padding:8px 0;">Sertifikat</th>
+            </tr>
+            ${rowsNon || `<tr><td colspan="3" style="text-align:center; padding:12px 0; color:rgba(255,255,255,.60);">${fallbackNotice}</td></tr>`}
           </table>
         </div>
       </div>
