@@ -198,53 +198,9 @@ function renderProfil(){
 }
 
 function buildProfilPayload_(raw){
-  const getVal = (keys)=> pick_(raw, keys);
-  const tmtRaw = getVal(['TMT', 'TMT MASUK', 'TMT_MASUK', 'TMT KERJA']);
-  const ttlRaw = getVal(['TTL']);
-  const tempatLahir = getVal(['TEMPAT LAHIR', 'Tempat Lahir', 'TEMPAT_LAHIR']);
-  const tglLahir = getVal(['TANGGAL LAHIR', 'Tgl Lahir', 'TANGGAL_LAHIR', 'TGL LAHIR', 'TGL_LAHIR', 'DOB']);
-
-  const ttl = ttlRaw || [tempatLahir, formatDateReadable_(tglLahir)].filter(Boolean).join(', ');
-
-  const emergency = {
-    nama: getVal(['KONTAK DARURAT', 'KONTAK DARURAT NAMA', 'KONTAK_DARURAT_NAMA']),
-    hubungan: getVal(['KONTAK DARURAT HUBUNGAN', 'KONTAK_DARURAT_HUBUNGAN', 'Hubungan Darurat']),
-    hp: getVal(['KONTAK DARURAT HP', 'KONTAK_DARURAT_HP', 'HP DARURAT'])
-  };
-
-  return {
-    summary: {
-      nama: getVal(['NAMA', 'Nama']),
-      nip: getVal(['NIP']),
-      unit: getVal(['UNIT', 'Unit', 'UNIT KERJA', 'Unit Kerja']),
-      jabatan: getVal(['JABATAN', 'JABATAN STRUKTURAL', 'JABATAN FUNGSIONAL']),
-      status_kepeg: getVal(['STATUS KEPEGAWAIAN', 'STATUS_KEPEGAWAIAN', 'Status Kepegawaian']),
-      tmt: formatDateReadable_(tmtRaw),
-      masa_kerja: getVal(['MASA KERJA', 'MASA_KERJA']) || computeMasaKerja_(tmtRaw)
-    },
-    contact: {
-      hp: getVal(['HP', 'NO HP', 'NO. HP', 'NO_HP']),
-      wa: getVal(['WA', 'WHATSAPP', 'NO WA']),
-      email: getVal(['EMAIL', 'Email']),
-      alamatKtp: getVal(['ALAMAT KTP', 'Alamat KTP', 'KTP ADDRESS']),
-      domisili: getVal(['DOMISILI', 'Alamat Domisili', 'ALAMAT DOMISILI']),
-      kecamatan: getVal(['KECAMATAN', 'Kecamatan']),
-      kab_kota: getVal(['KAB/KOTA', 'KABUPATEN/KOTA', 'Kota', 'KABUPATEN']),
-      kode_pos: getVal(['KODE POS', 'KODE_POS', 'KODEPOS']),
-      darurat: emergency
-    },
-    personal: {
-      nik: getVal(['NIK']),
-      ttl,
-      gender: getVal(['GENDER', 'JK', 'JENIS KELAMIN', 'Jenis Kelamin']),
-      status_nikah: getVal(['STATUS NIKAH', 'Status Nikah', 'STATUS PERNIKAHAN']),
-      pendidikan_str: getVal(['PENDIDIKAN TERAKHIR', 'Pendidikan Terakhir']),
-      bpjs_kes: getVal(['BPJS KESEHATAN', 'BPJS_KES']),
-      bpjs_tk: getVal(['BPJS KETENAGAKERJAAN', 'BPJS_TK', 'BPJSTK'])
-    },
-    edu_formal: normalizeEduFormal_(getVal(['PENDIDIKAN FORMAL', 'PENDIDIKAN_FORMAL', 'pendFormal', 'EDU_FORMAL'])),
-    edu_nonformal: normalizeEduNonFormal_(getVal(['PENDIDIKAN NONFORMAL', 'PENDIDIKAN NON-FORMAL', 'PENDIDIKAN_NONFORMAL', 'pendNonFormal', 'EDU_NONFORMAL']))
-  };
+  // Raw data dari buildStructuredProfile_() sudah dalam format yang benar
+  // Cukup return langsung tanpa re-mapping
+  return raw;
 }
 
 function normalizeEduFormal_(val){
@@ -304,12 +260,11 @@ function renderProfilLayout_(d){
   const daruratHub = escapeHtml(emergency.hubungan || '-');
   const daruratHp = escapeHtml(emergency.hp || '-');
 
-  const domisiliParts = [d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota, d.contact.kode_pos].filter(Boolean);
+  const domisiliParts = [d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota].filter(Boolean);
   const domisiliStr = domisiliParts.length ? escapeHtml(domisiliParts.join(', ')) : '-';
   const domisiliOnly = escapeHtml(d.contact.domisili || '-');
   const kecamatan = escapeHtml(d.contact.kecamatan || '-');
   const kabKota = escapeHtml(d.contact.kab_kota || '-');
-  const kodePos = escapeHtml(d.contact.kode_pos || '-');
 
   const rowsFormal = (d.edu_formal || []).map(x => `
     <tr>
@@ -359,11 +314,10 @@ function renderProfilLayout_(d){
           ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
           ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
           ${item('Email', escapeHtml(d.contact.email || '-') )}
-          ${item('Alamat KTP', escapeHtml(d.contact.alamatKtp || '-') )}
+          ${item('Alamat KTP', escapeHtml(d.contact.alamat_ktp || '-') )}
           ${item('Alamat Domisili', domisiliOnly)}
           ${item('Kecamatan Domisili', kecamatan)}
           ${item('Kab/Kota Domisili', kabKota)}
-          ${item('Kode Pos Domisili', kodePos)}
           ${item('Domisili (Ringkas)', domisiliStr)}
           ${item('Kontak Darurat - Nama', daruratNama)}
           ${item('Kontak Darurat - Hubungan', daruratHub)}
