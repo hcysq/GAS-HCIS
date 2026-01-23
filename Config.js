@@ -197,6 +197,90 @@ function validateHCISConfig() {
 }
 
 /**
+ * Validasi config untuk Profil (Masterdata & Users)
+ * @returns {object} { ok, checks: {...}, suggestions: [...] }
+ */
+function validateProfilConfig() {
+  ensureHCISConfigSheet_();
+  
+  const checks = {
+    masterdata_ss_id: { key: 'MASTERDATA_SS_ID', value: cfgGet('MASTERDATA_SS_ID', ''), ok: false },
+    masterdata_gid: { key: 'MASTERDATA_GID', value: cfgGet('MASTERDATA_GID', ''), ok: false },
+    user_gid: { key: 'USER_GID', value: cfgGet('USER_GID', ''), ok: false },
+    sheet_masterdata: { key: 'SHEET_MASTERDATA', value: cfgGet('SHEET_MASTERDATA', 'Masterdata'), ok: false },
+    sheet_users: { key: 'SHEET_USERS', value: cfgGet('SHEET_USERS', 'Users'), ok: false }
+  };
+  
+  // Validasi MASTERDATA_SS_ID
+  if (checks.masterdata_ss_id.value) {
+    try {
+      SpreadsheetApp.openById(checks.masterdata_ss_id.value);
+      checks.masterdata_ss_id.ok = true;
+    } catch (e) {
+      checks.masterdata_ss_id.error = 'ID tidak valid atau Anda tidak punya akses';
+    }
+  } else {
+    checks.masterdata_ss_id.note = 'Kosong (akan pakai spreadsheet aktif)';
+  }
+  
+  // Validasi MASTERDATA_GID
+  if (checks.masterdata_gid.value) {
+    try {
+      const ss = checks.masterdata_ss_id.value 
+        ? SpreadsheetApp.openById(checks.masterdata_ss_id.value)
+        : SpreadsheetApp.getActive();
+      const gid = Number(checks.masterdata_gid.value);
+      const sh = ss.getSheets().find(s => s.getSheetId() === gid);
+      checks.masterdata_gid.ok = !!sh;
+      if (!sh) checks.masterdata_gid.error = `GID ${gid} tidak ditemukan di spreadsheet`;
+    } catch (e) {
+      checks.masterdata_gid.error = e.message || 'Error validasi';
+    }
+  } else {
+    checks.masterdata_gid.note = 'Kosong (akan cari pakai SHEET_MASTERDATA)';
+  }
+  
+  // Validasi USER_GID (sama seperti MASTERDATA_GID)
+  if (checks.user_gid.value) {
+    try {
+      const ss = checks.masterdata_ss_id.value 
+        ? SpreadsheetApp.openById(checks.masterdata_ss_id.value)
+        : SpreadsheetApp.getActive();
+      const gid = Number(checks.user_gid.value);
+      const sh = ss.getSheets().find(s => s.getSheetId() === gid);
+      checks.user_gid.ok = !!sh;
+      if (!sh) checks.user_gid.error = `GID ${gid} tidak ditemukan di spreadsheet`;
+    } catch (e) {
+      checks.user_gid.error = e.message || 'Error validasi';
+    }
+  } else {
+    checks.user_gid.note = 'Kosong (akan cari pakai SHEET_USERS)';
+  }
+  
+  // Validasi SHEET_MASTERDATA & SHEET_USERS
+  if (checks.sheet_masterdata.value) checks.sheet_masterdata.ok = true;
+  if (checks.sheet_users.value) checks.sheet_users.ok = true;
+  
+  const suggestions = [];
+  for (const [k, check] of Object.entries(checks)) {
+    if (!check.ok && !check.note) {
+      suggestions.push(`❌ ${check.key}: ${check.error || 'Belum dikonfigurasi'}`);
+    } else if (check.note) {
+      suggestions.push(`⚠️  ${check.key}: ${check.note}`);
+    } else {
+      suggestions.push(`✅ ${check.key}: ${check.value.substring(0, 20)}...`);
+    }
+  }
+  
+  return {
+    ok: Object.values(checks).every(c => c.ok || c.note),
+    checks,
+    suggestions,
+    summary: `${Object.values(checks).filter(c => c.ok).length}/${Object.keys(checks).length} config valid`
+  };
+}
+
+/**
  * Helper cepat untuk set beberapa key sekaligus
  */
 function cfgSetMany(obj) {

@@ -24,3 +24,20 @@ const CFG = {
 function ss_() {
   return SpreadsheetApp.getActive();
 }
+
+/**
+ * TEST: Cek config Profil (jalankan di Script Editor console)
+ * Contoh: testProfilConfig()
+ */
+function testProfilConfig() {
+  const result = validateProfilConfig();
+  Logger.log('=== VALIDASI PROFIL CONFIG ===');
+  Logger.log(`Status: ${result.ok ? '✅ VALID' : '❌ ADA MASALAH'}`);
+  Logger.log(`Summary: ${result.summary}`);
+  Logger.log('\nDetail:');
+  result.suggestions.forEach(s => Logger.log(s));
+  Logger.log('\n');
+  Logger.log('Full check object:');
+  Logger.log(JSON.stringify(result.checks, null, 2));
+  return result;
+}
