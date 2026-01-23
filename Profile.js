@@ -12,13 +12,13 @@ function getProfilMasterdataSaya() {
     const userIdKey = userIdSession;
     if (!nipKey && !userIdKey) return { ok:false, msg:'Session tidak memiliki NIP atau USER_ID. Coba logout lalu login ulang.' };
 
-    // Pastikan sheet/tab Masterdata benar-benar ada (mendukung konfigurasi GID)
-    const { sheet: sh, error: sheetErr } = getMasterdataSheet_();
-    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Masterdata tidak ditemukan.' };
+    // Ambil sheet Users (mengandung data profil lengkap)
+    const { sheet: sh, error: sheetErr } = getUsersSheetByConfig_();
+    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Users tidak ditemukan.' };
 
     const lastRow = sh.getLastRow();
     const lastCol = sh.getLastColumn();
-    if (lastRow < 2 || lastCol < 1) return { ok:false, msg:'Sheet Masterdata kosong atau tidak ada data.' };
+    if (lastRow < 2 || lastCol < 1) return { ok:false, msg:'Sheet Users kosong atau tidak ada data.' };
 
     // Baca header (row 1)
     const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h||'').trim());
@@ -26,7 +26,7 @@ function getProfilMasterdataSaya() {
     const idxNip = findHeaderIdx_(headerMap, ['NIP']); // 0-based
     const idxUserId = findHeaderIdx_(headerMap, ['USER_ID']);
     const idxEmail = findHeaderIdx_(headerMap, ['Email', 'EMAIL']);
-    if (idxNip < 0 && idxUserId < 0 && idxEmail < 0) return { ok:false, msg:'Header "NIP", "USER_ID", atau "Email" tidak ditemukan di baris 1 sheet Masterdata.' };
+    if (idxNip < 0 && idxUserId < 0 && idxEmail < 0) return { ok:false, msg:'Header "NIP", "USER_ID", atau "Email" tidak ditemukan di baris 1 sheet Users.' };
 
     // Baca data rows (row 2..last)
     const rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
@@ -223,8 +223,8 @@ function debugProfilMasterdataSaya() {
     const nipSession = String(s.nip || '').trim();
     const nipKey = normalizeNIP_(nipSession);
 
-    const { sheet: sh, error: sheetErr } = getMasterdataSheet_();
-    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Masterdata tidak ditemukan.' };
+    const { sheet: sh, error: sheetErr } = getUsersSheetByConfig_();
+    if (!sh) return { ok:false, msg: sheetErr || 'Sheet Users tidak ditemukan.' };
 
     const lastRow = sh.getLastRow();
     const lastCol = sh.getLastColumn();
@@ -248,7 +248,7 @@ function debugProfilMasterdataSaya() {
     return {
       ok:true,
       session: { nip: nipSession, nipKey },
-      sheet: { name: CFG.SHEET_MASTERDATA, lastRow, lastCol },
+      sheet: { name: CFG.SHEET_USERS, lastRow, lastCol },
       headerNIPIndex0: idxNip,
       headersPreview: headers.slice(0, 15),
       nipSamples: sample
@@ -257,26 +257,6 @@ function debugProfilMasterdataSaya() {
   } catch (e) {
     return { ok:false, msg:`Error debugProfil: ${e && e.message ? e.message : e}` };
   }
-}
-
-/**
- * Ambil sheet Masterdata dengan prioritas GID (konfigurasi USERS_GID di HCIS_Config),
- * fallback ke nama tab default dari CFG.SHEET_MASTERDATA.
- */
-function getMasterdataSheet_() {
-  const ss = SpreadsheetApp.getActive();
-
-  const gidRaw = cfgGet('USERS_GID', '');
-  const gid = Number(gidRaw);
-  if (!isNaN(gid) && gid > 0) {
-    const targetById = ss.getSheets().find(sh => sh.getSheetId() === gid);
-    if (targetById) return { sheet: targetById };
-    return { sheet: null, error: `Sheet Masterdata dengan GID ${gid} tidak ditemukan pada spreadsheet aktif. Cek USERS_GID di HCIS_Config.` };
-  }
-
-  const sh = ss.getSheetByName(CFG.SHEET_MASTERDATA);
-  if (sh) return { sheet: sh };
-  return { sheet: null, error: `Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan pada spreadsheet aktif.` };
 }
 
 /** Header finder yang tahan spasi/case */
