@@ -260,11 +260,11 @@ function renderProfilLayout_(d){
   const daruratHub = escapeHtml(emergency.hubungan || '-');
   const daruratHp = escapeHtml(emergency.hp || '-');
 
-  const domisiliParts = [d.contact.domisili, d.contact.kecamatan, d.contact.kab_kota].filter(Boolean);
-  const domisiliStr = domisiliParts.length ? escapeHtml(domisiliParts.join(', ')) : '-';
-  const domisiliOnly = escapeHtml(d.contact.domisili || '-');
+  const alamat = escapeHtml(d.contact.alamat || '-');
+  const kelurahan = escapeHtml(d.contact.kelurahan_desa || '-');
   const kecamatan = escapeHtml(d.contact.kecamatan || '-');
-  const kabKota = escapeHtml(d.contact.kab_kota || '-');
+  const kabKota = escapeHtml(d.contact.kabupaten_kota || '-');
+  const kodePos = escapeHtml(d.contact.kode_pos || '-');
 
   const rowsFormal = (d.edu_formal || []).map(x => `
     <tr>
@@ -302,10 +302,17 @@ function renderProfilLayout_(d){
           <div style="font-weight:800; margin-bottom:6px;">Data Pribadi</div>
           ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
           ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
-          ${item('Gender', escapeHtml(d.personal.gender || '-') )}
+          ${item('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-') )}
           ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-') )}
+          ${item('No. Kartu Keluarga', escapeHtml(d.personal.no_kk || '-') )}
+          ${item('Ayah Kandung', escapeHtml(d.personal.ayah_kandung || '-') )}
+          ${item('Ibu Kandung', escapeHtml(d.personal.ibu_kandung || '-') )}
+          ${item('Gelar Akademik Depan', escapeHtml(d.personal.gelar_akademik_depan || '-') )}
+          ${item('Gelar Akademik Belakang', escapeHtml(d.personal.gelar_akademik_belakang || '-') )}
           ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-') )}
           ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-') )}
+          ${item('Status PTKP', escapeHtml(d.personal.status_ptkp || '-') )}
+          ${item('No. Rekening', escapeHtml(d.personal.no_rekening || '-') )}
           ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
         </div>
 
@@ -314,11 +321,11 @@ function renderProfilLayout_(d){
           ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
           ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
           ${item('Email', escapeHtml(d.contact.email || '-') )}
-          ${item('Alamat KTP', escapeHtml(d.contact.alamat_ktp || '-') )}
-          ${item('Alamat Domisili', domisiliOnly)}
-          ${item('Kecamatan Domisili', kecamatan)}
-          ${item('Kab/Kota Domisili', kabKota)}
-          ${item('Domisili (Ringkas)', domisiliStr)}
+          ${item('Alamat', alamat)}
+          ${item('Kelurahan / Desa', kelurahan)}
+          ${item('Kecamatan', kecamatan)}
+          ${item('Kabupaten / Kota', kabKota)}
+          ${item('Kode Pos', kodePos)}
           ${item('Kontak Darurat - Nama', daruratNama)}
           ${item('Kontak Darurat - Hubungan', daruratHub)}
           ${item('Kontak Darurat - HP', daruratHp)}

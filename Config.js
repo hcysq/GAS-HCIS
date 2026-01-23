@@ -205,7 +205,6 @@ function validateProfilConfig() {
   
   const checks = {
     users_gid: { key: 'USERS_GID', value: cfgGet('USERS_GID', ''), ok: false },
-    sheet_masterdata: { key: 'SHEET_MASTERDATA', value: cfgGet('SHEET_MASTERDATA', 'Masterdata'), ok: false },
     sheet_users: { key: 'SHEET_USERS', value: cfgGet('SHEET_USERS', 'Users'), ok: false }
   };
   
@@ -224,8 +223,7 @@ function validateProfilConfig() {
     checks.users_gid.note = 'Kosong (akan cari pakai SHEET_USERS)';
   }
   
-  // Validasi SHEET_MASTERDATA & SHEET_USERS
-  if (checks.sheet_masterdata.value) checks.sheet_masterdata.ok = true;
+  // Validasi SHEET_USERS
   if (checks.sheet_users.value) checks.sheet_users.ok = true;
   
   const suggestions = [];
