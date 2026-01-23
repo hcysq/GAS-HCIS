@@ -268,7 +268,7 @@ function validateProfilConfig() {
     } else if (check.note) {
       suggestions.push(`⚠️  ${check.key}: ${check.note}`);
     } else {
-      suggestions.push(`✅ ${check.key}: ${check.value.substring(0, 20)}...`);
+      suggestions.push(`✅ ${check.key}: ${String(check.value).substring(0, 20)}...`);
     }
   }
   
