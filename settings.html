@@ -15,6 +15,7 @@ const SETTINGS_STATE = {
   msg: '',
   msgType: 'info',       // info | error | success
   lastOtpSentAt: null,
+  currentMenu: 'main',   // main | password | help | about
 };
 
 function settingsResetState_(){
@@ -22,25 +23,203 @@ function settingsResetState_(){
   SETTINGS_STATE.msg = '';
   SETTINGS_STATE.msgType = 'info';
   SETTINGS_STATE.lastOtpSentAt = null;
+  SETTINGS_STATE.currentMenu = 'main';
 }
 
 function renderSettings(){
-  // wrapper
+  // Render based on currentMenu
+  if (SETTINGS_STATE.currentMenu === 'main') {
+    renderSettingsMain_();
+  } else if (SETTINGS_STATE.currentMenu === 'password') {
+    renderSettingsPasswordFlow_();
+  } else if (SETTINGS_STATE.currentMenu === 'help') {
+    renderSettingsHelp_();
+  } else if (SETTINGS_STATE.currentMenu === 'about') {
+    renderSettingsAbout_();
+  } else if (SETTINGS_STATE.currentMenu === 'history' || SETTINGS_STATE.currentMenu === 'preferences') {
+    renderSettingsComingSoon_(SETTINGS_STATE.currentMenu);
+  }
+}
+
+function renderSettingsMain_(){
   root.innerHTML = `
     <div class="card">
-      <div style="font-weight:900;font-size:18px;">Setelan</div>
-      <div class="muted" style="margin-top:6px;">Keamanan akun & pengaturan dasar.</div>
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Setelan</div>
+      <div class="muted" style="margin-bottom:14px;">Kelola akun, preferensi, dan informasi aplikasi.</div>
     </div>
 
-    ${renderChangePasswordCard_()}
+    <!-- Menu Grid -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      <!-- Ganti Password -->
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; transition:background .2s ease;" onclick="settingsGoToMenu_('password')" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background=''">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Ganti Password</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Perbarui password akun Anda</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
 
+      <!-- Riwayat Login -->
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:not-allowed; opacity:0.6;">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Riwayat Login</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Lihat aktivitas login Anda</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+
+      <!-- Preferensi Tampilan -->
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:not-allowed; opacity:0.6;">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Preferensi Tampilan</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Sesuaikan tema dan tampilan</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+
+      <!-- Bantuan & Dukungan -->
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; transition:background .2s ease;" onclick="settingsGoToMenu_('help')" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background=''">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Bantuan & Dukungan</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Hubungi tim dukungan</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <!-- Tentang Aplikasi -->
+      <div style="display:flex; align-items:center; padding:14px; cursor:pointer; transition:background .2s ease;" onclick="settingsGoToMenu_('about')" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background=''">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Tentang Aplikasi</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Informasi aplikasi dan versi</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+    </div>
+
+    <!-- Keluar -->
     <div class="card">
-      <div style="font-weight:900;margin-bottom:10px;">Akun</div>
-      <button class="btn" style="background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.22);" onclick="logout()">
+      <button class="btn" style="background:rgba(255,100,100,.20);color:rgba(255,100,100,.95);border:1px solid rgba(255,100,100,.40); font-weight:700;" onclick="logout()">
         Keluar
       </button>
     </div>
   `;
+}
+
+function renderSettingsPasswordFlow_(){
+  // Header dengan tombol kembali
+  const headerHtml = `
+    <div class="card" style="display:flex; align-items:center; gap:10px; padding:14px; margin-bottom:0; border-bottom:1px solid rgba(255,255,255,.12); cursor:pointer;" onclick="settingsGoToMenu_('main')">
+      <div style="font-size:20px;">‹</div>
+      <div style="font-weight:700; font-size:16px; color:rgba(255,255,255,.95);">Ganti Password</div>
+    </div>
+  `;
+
+  root.innerHTML = headerHtml + renderChangePasswordCard_();
+}
+
+function renderSettingsHelp_(){
+  const headerHtml = `
+    <div class="card" style="display:flex; align-items:center; gap:10px; padding:14px; margin-bottom:0; border-bottom:1px solid rgba(255,255,255,.12); cursor:pointer;" onclick="settingsGoToMenu_('main')">
+      <div style="font-size:20px;">‹</div>
+      <div style="font-weight:700; font-size:16px; color:rgba(255,255,255,.95);">Bantuan & Dukungan</div>
+    </div>
+  `;
+
+  const contentHtml = `
+    <div class="card" style="margin-top:0; border-radius:0 0 16px 16px;">
+      <div style="font-weight:700; font-size:14px; color:rgba(255,255,255,.95); margin-bottom:12px;">Hubungi Tim Dukungan</div>
+      
+      <div style="background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="color:rgba(255,255,255,.85); font-size:13px; line-height:1.6; margin-bottom:12px;">
+          Untuk bantuan terkait akun dan penggunaan aplikasi, silakan hubungi Admin HC.
+        </div>
+        
+        <div style="background:rgba(255,255,255,.04); border-left:3px solid rgba(14,165,233,.50); padding:12px; border-radius:6px; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; color:rgba(255,255,255,.80); margin-bottom:6px; text-transform:uppercase; opacity:0.9;">Admin HC</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.85); word-break:break-all;">
+            WhatsApp: <b>+62 851-7520-1627</b>
+          </div>
+        </div>
+
+        <a href="https://wa.me/628517520162?text=Halo%20Admin%20HC%2C%20saya%20butuh%20bantuan%20dengan%20aplikasi%20HCIS" target="_blank" rel="noopener" style="display:block;">
+          <button class="btn primary" style="margin-top:6px;">
+            💬 Hubungi via WhatsApp
+          </button>
+        </a>
+      </div>
+
+      <div style="font-size:12px; color:rgba(255,255,255,.60); font-style:italic;">
+        Respons biasanya dalam 1-2 jam kerja.
+      </div>
+    </div>
+  `;
+
+  root.innerHTML = headerHtml + contentHtml;
+}
+
+function renderSettingsAbout_(){
+  const headerHtml = `
+    <div class="card" style="display:flex; align-items:center; gap:10px; padding:14px; margin-bottom:0; border-bottom:1px solid rgba(255,255,255,.12); cursor:pointer;" onclick="settingsGoToMenu_('main')">
+      <div style="font-size:20px;">‹</div>
+      <div style="font-weight:700; font-size:16px; color:rgba(255,255,255,.95);">Tentang Aplikasi</div>
+    </div>
+  `;
+
+  const contentHtml = `
+    <div class="card" style="margin-top:0; border-radius:0 0 16px 16px;">
+      <div style="background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:16px; text-align:center; margin-bottom:14px;">
+        <div style="font-size:28px; margin-bottom:10px;">📱</div>
+        <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96); margin-bottom:6px;">HCIS Sabilul Qur'an</div>
+        <div style="font-size:12px; color:rgba(255,255,255,.70);">Human Capital Information System</div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700; font-size:12px; color:rgba(255,255,255,.75); text-transform:uppercase; margin-bottom:8px; opacity:0.9;">Tentang</div>
+        <div style="font-size:13px; color:rgba(255,255,255,.85); line-height:1.6;">
+          Sistem Informasi Human Capital untuk mendukung pengelolaan Sumber Daya Manusia di lingkungan Yayasan Sabilul Qur'an.
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,.10);">
+        <div style="font-weight:700; font-size:12px; color:rgba(255,255,255,.75); text-transform:uppercase; margin-bottom:8px; opacity:0.9;">Developer</div>
+        <div style="font-size:13px; color:rgba(255,255,255,.85);">
+          Developed by <b>Samijaya</b>
+        </div>
+      </div>
+
+      <div style="padding-top:14px; border-top:1px solid rgba(255,255,255,.10);">
+        <div style="font-weight:700; font-size:12px; color:rgba(255,255,255,.75); text-transform:uppercase; margin-bottom:8px; opacity:0.9;">Versi</div>
+        <div style="font-size:13px; color:rgba(255,255,255,.85);">
+          v1.0.0
+        </div>
+      </div>
+    </div>
+  `;
+
+  root.innerHTML = headerHtml + contentHtml;
+}
+
+function renderSettingsComingSoon_(menuName){
+  const menuLabel = menuName === 'history' ? 'Riwayat Login' : 'Preferensi Tampilan';
+  
+  const headerHtml = `
+    <div class="card" style="display:flex; align-items:center; gap:10px; padding:14px; margin-bottom:0; border-bottom:1px solid rgba(255,255,255,.12); cursor:pointer;" onclick="settingsGoToMenu_('main')">
+      <div style="font-size:20px;">‹</div>
+      <div style="font-weight:700; font-size:16px; color:rgba(255,255,255,.95);">${escapeHtml(menuLabel)}</div>
+    </div>
+  `;
+
+  const contentHtml = `
+    <div class="card" style="margin-top:0; border-radius:0 0 16px 16px; text-align:center; padding:32px 14px;">
+      <div style="font-size:42px; margin-bottom:12px;">🚀</div>
+      <div style="font-weight:700; font-size:16px; color:rgba(255,255,255,.95); margin-bottom:8px;">Segera Hadir</div>
+      <div style="font-size:13px; color:rgba(255,255,255,.75); line-height:1.6;">
+        Fitur ini akan tersedia pada pembaruan berikutnya.
+      </div>
+    </div>
+  `;
+
+  root.innerHTML = headerHtml + contentHtml;
 }
 
 function renderChangePasswordCard_(){
@@ -105,7 +284,7 @@ function renderChangePasswordCard_(){
   }
 
   return `
-    <div class="card">
+    <div class="card" style="margin-top:0; border-radius:0 0 16px 16px;">
       <div style="font-weight:900;margin-bottom:10px;">Ganti Password</div>
       ${msgHtml}
       ${stepHtml}
@@ -115,16 +294,24 @@ function renderChangePasswordCard_(){
 
 /* ===== UI actions ===== */
 
+function settingsGoToMenu_(menuName){
+  SETTINGS_STATE.currentMenu = menuName;
+  SETTINGS_STATE.step = 1;
+  SETTINGS_STATE.msg = '';
+  SETTINGS_STATE.msgType = 'info';
+  renderSettings();
+}
+
 function settingsSetMsg_(msg, type='info'){
   SETTINGS_STATE.msg = msg || '';
   SETTINGS_STATE.msgType = type;
-  renderSettings();
+  renderSettingsPasswordFlow_();
 }
 
 function settingsBackToStep1_(){
   SETTINGS_STATE.step = 1;
   SETTINGS_STATE.msg = '';
-  renderSettings();
+  renderSettingsPasswordFlow_();
 }
 
 function settingsSendOTP_(){
