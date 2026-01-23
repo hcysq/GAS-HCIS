@@ -260,36 +260,23 @@ function debugProfilMasterdataSaya() {
 }
 
 /**
- * Ambil sheet Masterdata dengan prioritas GID (konfigurasi MASTERDATA_GID di HCIS_Config),
+ * Ambil sheet Masterdata dengan prioritas GID (konfigurasi USERS_GID di HCIS_Config),
  * fallback ke nama tab default dari CFG.SHEET_MASTERDATA.
  */
 function getMasterdataSheet_() {
-  const { ss, error: ssErr } = getMasterdataSpreadsheet_();
-  if (!ss) return { sheet: null, error: ssErr };
+  const ss = SpreadsheetApp.getActive();
 
-  const gidRaw = cfgGet('MASTERDATA_GID', '');
+  const gidRaw = cfgGet('USERS_GID', '');
   const gid = Number(gidRaw);
   if (!isNaN(gid) && gid > 0) {
     const targetById = ss.getSheets().find(sh => sh.getSheetId() === gid);
     if (targetById) return { sheet: targetById };
-    return { sheet: null, error: `Sheet Masterdata dengan GID ${gid} tidak ditemukan pada spreadsheet yang dikonfigurasi. Cek MASTERDATA_GID di HCIS_Config.` };
+    return { sheet: null, error: `Sheet Masterdata dengan GID ${gid} tidak ditemukan pada spreadsheet aktif. Cek USERS_GID di HCIS_Config.` };
   }
 
   const sh = ss.getSheetByName(CFG.SHEET_MASTERDATA);
   if (sh) return { sheet: sh };
-  return { sheet: null, error: `Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan pada spreadsheet Masterdata.` };
-}
-
-function getMasterdataSpreadsheet_() {
-  const ssId = cfgGetString('MASTERDATA_SS_ID', '');
-  if (!ssId) return { ss: SpreadsheetApp.getActive() };
-
-  try {
-    return { ss: SpreadsheetApp.openById(ssId) };
-  } catch (e) {
-    const errMsg = e && e.message ? e.message : e;
-    return { ss: null, error: `Gagal membuka spreadsheet Masterdata (MASTERDATA_SS_ID di HCIS_Config): ${errMsg}` };
-  }
+  return { sheet: null, error: `Sheet "${CFG.SHEET_MASTERDATA}" tidak ditemukan pada spreadsheet aktif.` };
 }
 
 /** Header finder yang tahan spasi/case */
@@ -366,23 +353,22 @@ function getProfilUsersDetail() {
 
 function getUsersSheetByConfig_() {
   try {
-    const { ss, error: ssErr } = getMasterdataSpreadsheet_();
-    if (!ss) return { sheet: null, error: ssErr || 'Spreadsheet Masterdata tidak tersedia (cek MASTERDATA_SS_ID).' };
+    const ss = SpreadsheetApp.getActive();
 
-    const gidRaw = cfgGet('MASTERDATA_GID', '');
+    const gidRaw = cfgGet('USERS_GID', '');
     const gid = Number(gidRaw);
     if (!isNaN(gid) && gid > 0) {
       const byId = ss.getSheets().find(sh => sh.getSheetId() === gid);
       if (byId) return { sheet: byId };
-      return { sheet: null, error:`Sheet dengan GID ${gid} (MASTERDATA_GID) tidak ditemukan di spreadsheet Masterdata.` };
+      return { sheet: null, error:`Sheet dengan GID ${gid} (USERS_GID) tidak ditemukan di spreadsheet aktif.` };
     }
 
     const sh = ss.getSheetByName(CFG.SHEET_USERS);
     if (sh) return { sheet: sh };
-    return { sheet: null, error:`Sheet "${CFG.SHEET_USERS}" tidak ditemukan pada spreadsheet Masterdata.` };
+    return { sheet: null, error:`Sheet "${CFG.SHEET_USERS}" tidak ditemukan pada spreadsheet aktif.` };
   } catch (e) {
     const errMsg = e && e.message ? e.message : e;
-    return { sheet: null, error:`Gagal membuka spreadsheet Users (MASTERDATA_SS_ID): ${errMsg}` };
+    return { sheet: null, error:`Gagal membuka sheet Users: ${errMsg}` };
   }
 }
 
