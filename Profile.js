@@ -511,3 +511,230 @@ function computeMasaKerjaFromDate_(tmtVal) {
     return '-';
   }
 }
+/*************************************************
+ * HISTORI MUTASI - Pencatatan Perubahan Field
+ *************************************************/
+
+/**
+ * Definisi field sensitif
+ */
+function getSensitiveFields_() {
+  return ['NIK', 'No._Rekening'];
+}
+
+/**
+ * Generate UUID v4
+ */
+function generateUUID_() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * Catat perubahan field ke sheet Histori Mutasi
+ * @param {object} params - { target_nip, target_nama, field_key, field_label, old_value, new_value, changed_by_nip, changed_by_nama, actor_role, consent_checked, reason }
+ * @returns {object} { ok, msg, mutasi_id }
+ */
+function logProfilMutation_(params) {
+  try {
+    const {
+      target_nip,
+      target_nama,
+      field_key,
+      field_label,
+      old_value,
+      new_value,
+      changed_by_nip,
+      changed_by_nama,
+      actor_role,
+      consent_checked,
+      reason
+    } = params;
+
+    // Validasi input
+    if (!target_nip || !field_key || !changed_by_nip) {
+      return { ok: false, msg: 'Parameter tidak lengkap (target_nip, field_key, changed_by_nip wajib)' };
+    }
+
+    const { sheet: sh, error: sheetErr } = getHistoriMutasiSheet_();
+    if (!sh) {
+      return { ok: false, msg: sheetErr || 'Sheet Histori_Mutasi tidak ditemukan' };
+    }
+
+    // Pastikan header
+    ensureHistoriMutasiHeader_(sh);
+
+    // Generate Mutasi_ID & Timestamp
+    const mutasi_id = generateUUID_();
+    const timestamp = new Date().toISOString();
+
+    // Append record
+    const newRow = [
+      mutasi_id,                          // Mutasi_ID
+      timestamp,                          // Timestamp
+      target_nip,                         // Target_NIP
+      target_nama || '',                  // Target_Nama
+      field_key,                          // Field_Key
+      field_label || field_key,           // Field_Label
+      String(old_value || ''),            // Old_Value
+      String(new_value || ''),            // New_Value
+      changed_by_nip,                     // Changed_By_NIP
+      changed_by_nama || '',              // Changed_By_Nama
+      actor_role || 'pegawai',            // Actor_Role
+      'profil_edit',                      // Change_Source
+      reason || '',                       // Reason
+      consent_checked ? 'TRUE' : 'FALSE', // Consent_Checked
+      '',                                 // Client_Info
+      ''                                  // Request_ID/Trace_ID
+    ];
+
+    sh.appendRow(newRow);
+
+    return { ok: true, msg: 'Perubahan dicatat ke histori', mutasi_id };
+  } catch (e) {
+    return { ok: false, msg: `Error logProfilMutation_: ${e && e.message ? e.message : e}` };
+  }
+}
+
+/**
+ * Pastikan header di sheet Histori_Mutasi
+ */
+function ensureHistoriMutasiHeader_(sh) {
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const headerText = headers.map(h => String(h || '').trim());
+
+  const expected = [
+    'Mutasi_ID',
+    'Timestamp',
+    'Target_NIP',
+    'Target_Nama',
+    'Field_Key',
+    'Field_Label',
+    'Old_Value',
+    'New_Value',
+    'Changed_By_NIP',
+    'Changed_By_Nama',
+    'Actor_Role',
+    'Change_Source',
+    'Reason',
+    'Consent_Checked',
+    'Client_Info',
+    'Request_ID'
+  ];
+
+  const headerOk = expected.length === headerText.length &&
+    expected.every((exp, i) => String(headerText[i] || '').trim() === exp);
+
+  if (!headerOk) {
+    sh.getRange(1, 1, 1, expected.length).setValues([expected]);
+    sh.setFrozenRows(1);
+  }
+}
+
+/**
+ * Simpan perubahan field profil dan catat ke histori
+ * @param {object} params - { field_key, field_label, old_value, new_value, consent_checked }
+ * @returns {object} { ok, msg, mutasi_id }
+ */
+function saveProfilFieldChange(params) {
+  try {
+    const s = requireLogin_();
+    const nipSession = String(s.nip || '').trim();
+    const namaSession = String(s.nama || '').trim();
+    
+    if (!nipSession) {
+      return { ok: false, msg: 'Session tidak valid (NIP tidak ditemukan)' };
+    }
+
+    const { field_key, field_label, old_value, new_value, consent_checked } = params;
+
+    // Validasi
+    if (!field_key || new_value === undefined) {
+      return { ok: false, msg: 'field_key dan new_value wajib' };
+    }
+
+    const sensitiveFields = getSensitiveFields_();
+    const isSensitive = sensitiveFields.includes(field_key);
+
+    // Jika field sensitif, pastikan consent
+    if (isSensitive && !consent_checked) {
+      return { ok: false, msg: 'Consent wajib untuk field sensitif' };
+    }
+
+    // Cari row di Users sheet dan update field
+    const { sheet: sh, error: sheetErr } = getUsersSheetByConfig_();
+    if (!sh) {
+      return { ok: false, msg: sheetErr || 'Sheet Users tidak ditemukan' };
+    }
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) {
+      return { ok: false, msg: 'Sheet Users kosong' };
+    }
+
+    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    const headerMap = buildHeaderMap_(headers);
+    const idxFieldKey = findHeaderIdx_(headerMap, [field_key]);
+
+    if (idxFieldKey < 0) {
+      return { ok: false, msg: `Field "${field_key}" tidak ditemukan di header` };
+    }
+
+    // Cari row pegawai (match NIP)
+    const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const idxNip = findHeaderIdx_(headerMap, ['NIP']);
+
+    let foundRowNum = -1;
+    for (let i = 1; i < values.length; i++) {
+      const nipCell = idxNip >= 0 ? normalizeNIP_(values[i][idxNip]) : '';
+      if (nipCell === normalizeNIP_(nipSession)) {
+        foundRowNum = i + 1; // row number (1-based)
+        break;
+      }
+    }
+
+    if (foundRowNum < 0) {
+      return { ok: false, msg: 'Data pegawai tidak ditemukan di sheet Users' };
+    }
+
+    // Update field value
+    sh.getRange(foundRowNum, idxFieldKey + 1).setValue(new_value);
+
+    // Catat ke histori
+    const histRes = logProfilMutation_({
+      target_nip: nipSession,
+      target_nama: namaSession,
+      field_key: field_key,
+      field_label: field_label || field_key,
+      old_value: old_value,
+      new_value: new_value,
+      changed_by_nip: nipSession,
+      changed_by_nama: namaSession,
+      actor_role: 'pegawai',
+      consent_checked: isSensitive && consent_checked,
+      reason: ''
+    });
+
+    if (!histRes.ok) {
+      // Log dicatat, tapi return success karena data sudah disimpan
+      return {
+        ok: true,
+        msg: 'Perubahan disimpan (histori: ' + (histRes.msg || 'dicatat') + ')',
+        mutasi_id: histRes.mutasi_id
+      };
+    }
+
+    return {
+      ok: true,
+      msg: 'Perubahan disimpan dan dicatat dalam histori',
+      mutasi_id: histRes.mutasi_id
+    };
+
+  } catch (e) {
+    return { ok: false, msg: `Error saveProfilFieldChange: ${e && e.message ? e.message : e}` };
+  }
+}

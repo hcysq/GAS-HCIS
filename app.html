@@ -249,10 +249,13 @@ function renderProfilLayout_(d){
   const fallbackNotice = '<span class="muted">-</span>';
   
   // Updated styling untuk konsistensi dengan Dashboard
-  const item = (lbl, val) => `
-    <div style="display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.08);">
-      <div style="flex:1; color:rgba(255,255,255,.70); font-size:13px; font-weight:500;">${escapeHtml(lbl)}</div>
-      <div style="flex:1.5; font-weight:600; text-align:right; color:rgba(255,255,255,.92);">${val || '-'}</div>
+  const item = (lbl, val, fieldKey) => `
+    <div class="field-item">
+      <div class="field-label">${escapeHtml(lbl)}</div>
+      <div class="field-value-display" data-field-key="${escapeHtml(fieldKey || '')}">${val || '-'}</div>
+      <div class="field-actions">
+        <button class="edit-btn" onclick="startEditField('${escapeHtml(fieldKey || '')}', '${escapeHtml(lbl || '')}', ${JSON.stringify(val).replace(/"/g, '&quot;')}, '${getFieldType_(fieldKey)}')">✏️</button>
+      </div>
     </div>`;
 
   const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '-';
@@ -292,46 +295,46 @@ function renderProfilLayout_(d){
         
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Ringkasan Kepegawaian</div>
-          ${item('Nama', escapeHtml(d.summary.nama || '-') )}
-          ${item('NIP', escapeHtml(d.summary.nip || '-') )}
-          ${item('Unit', escapeHtml(d.summary.unit || '-') )}
-          ${item('Jabatan', escapeHtml(d.summary.jabatan || '-') )}
-          ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-') )}
-          ${item('TMT', escapeHtml(d.summary.tmt || '-') )}
-          ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-') )}
+          ${item('Nama', escapeHtml(d.summary.nama || '-'), 'Nama' )}
+          ${item('NIP', escapeHtml(d.summary.nip || '-'), 'NIP' )}
+          ${item('Unit', escapeHtml(d.summary.unit || '-'), 'UNIT' )}
+          ${item('Jabatan', escapeHtml(d.summary.jabatan || '-'), 'JABATAN' )}
+          ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-'), 'Status_Kepeg' )}
+          ${item('TMT', escapeHtml(d.summary.tmt || '-'), 'TMT' )}
+          ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-'), '' )}
         </div>
 
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Data Pribadi</div>
-          ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice)}
-          ${item('TTL', escapeHtml(d.personal.ttl || '-') )}
-          ${item('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-') )}
-          ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-') )}
-          ${item('No. Kartu Keluarga', escapeHtml(d.personal.no_kk || '-') )}
-          ${item('Ayah Kandung', escapeHtml(d.personal.ayah_kandung || '-') )}
-          ${item('Ibu Kandung', escapeHtml(d.personal.ibu_kandung || '-') )}
-          ${item('Gelar Akademik Depan', escapeHtml(d.personal.gelar_akademik_depan || '-') )}
-          ${item('Gelar Akademik Belakang', escapeHtml(d.personal.gelar_akademik_belakang || '-') )}
-          ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-') )}
-          ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-') )}
-          ${item('Status PTKP', escapeHtml(d.personal.status_ptkp || '-') )}
-          ${item('No. Rekening', escapeHtml(d.personal.no_rekening || '-') )}
-          ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-') )}
+          ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice, 'NIK')}
+          ${item('TTL', escapeHtml(d.personal.ttl || '-'), '' )}
+          ${item('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-'), 'Jenis_Kelamin' )}
+          ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-'), 'Status_Nikah' )}
+          ${item('No. Kartu Keluarga', escapeHtml(d.personal.no_kk || '-'), 'No_KK' )}
+          ${item('Ayah Kandung', escapeHtml(d.personal.ayah_kandung || '-'), 'Ayah_Kandung' )}
+          ${item('Ibu Kandung', escapeHtml(d.personal.ibu_kandung || '-'), 'Ibu_Kandung' )}
+          ${item('Gelar Akademik Depan', escapeHtml(d.personal.gelar_akademik_depan || '-'), 'Gelar_Akademik_Depan' )}
+          ${item('Gelar Akademik Belakang', escapeHtml(d.personal.gelar_akademik_belakang || '-'), 'Gelar_Akademik_Belakang' )}
+          ${item('BPJS Kesehatan', escapeHtml(d.personal.bpjs_kes || '-'), 'BPJS_Kes' )}
+          ${item('BPJS Ketenagakerjaan', escapeHtml(d.personal.bpjs_tk || '-'), 'BPJS_TK' )}
+          ${item('Status PTKP', escapeHtml(d.personal.status_ptkp || '-'), 'Status_PTKP' )}
+          ${item('No. Rekening', escapeHtml(d.personal.no_rekening || '-'), 'No._Rekening' )}
+          ${item('Pendidikan Terakhir', escapeHtml(d.personal.pendidikan_str || '-'), 'Pendidikan_Terakhir' )}
         </div>
 
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Kontak & Alamat</div>
-          ${item('No. HP', escapeHtml(d.contact.hp || '-') )}
-          ${item('WhatsApp', escapeHtml(d.contact.wa || '-') )}
-          ${item('Email', escapeHtml(d.contact.email || '-') )}
-          ${item('Alamat', alamat)}
-          ${item('Kelurahan / Desa', kelurahan)}
-          ${item('Kecamatan', kecamatan)}
-          ${item('Kabupaten / Kota', kabKota)}
-          ${item('Kode Pos', kodePos)}
-          ${item('Kontak Darurat - Nama', daruratNama)}
-          ${item('Kontak Darurat - Hubungan', daruratHub)}
-          ${item('Kontak Darurat - HP', daruratHp)}
+          ${item('No. HP', escapeHtml(d.contact.hp || '-'), 'No_HP' )}
+          ${item('WhatsApp', escapeHtml(d.contact.wa || '-'), 'WhatsApp' )}
+          ${item('Email', escapeHtml(d.contact.email || '-'), 'Email' )}
+          ${item('Alamat', alamat, 'Alamat')}
+          ${item('Kelurahan / Desa', kelurahan, 'Kelurahan_Desa')}
+          ${item('Kecamatan', kecamatan, 'Kecamatan')}
+          ${item('Kabupaten / Kota', kabKota, 'Kabupaten_Kota')}
+          ${item('Kode Pos', kodePos, 'Kode_Pos')}
+          ${item('Kontak Darurat - Nama', daruratNama, 'Darurat_Nama')}
+          ${item('Kontak Darurat - Hubungan', daruratHub, 'Darurat_Hubungan')}
+          ${item('Kontak Darurat - HP', daruratHp, 'Darurat_HP')}
         </div>
 
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
@@ -359,8 +362,83 @@ function renderProfilLayout_(d){
           </table>
         </div>
       </div>
-    </div>`;
+    </div>
+    
+    <!-- Modal untuk Edit Field -->
+    <div class="modal-overlay hidden" id="editFieldModal">
+      <div class="modal">
+        <div class="modal-title">Edit Field</div>
+        <div class="modal-body">
+          <div class="modal-field-label">Nama Field</div>
+          <div id="editFieldLabel" class="modal-field-value">-</div>
+          
+          <div style="margin-top:16px;">
+            <div class="modal-field-label">Nilai Baru</div>
+            <input type="text" id="editFieldInput" style="margin-top:6px;" placeholder="Masukkan nilai baru">
+          </div>
+        </div>
+        
+        <div class="modal-buttons">
+          <button class="btn secondary" onclick="cancelEditField()">Batal</button>
+          <button class="btn primary" onclick="confirmEditField()">Lanjut Simpan</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Modal untuk Confirm Perubahan -->
+    <div class="modal-overlay hidden" id="confirmChangeModal">
+      <div class="modal">
+        <div class="modal-title">Konfirmasi Perubahan</div>
+        <div class="modal-body">
+          <div class="modal-warning">
+            Pastikan data yang Anda masukkan sudah benar. Perubahan akan direkam dalam histori mutasi.
+          </div>
+          
+          <div style="margin-bottom:12px;">
+            <div class="modal-field-label">Field</div>
+            <div id="confirmFieldLabel" class="modal-field-value">-</div>
+          </div>
+          
+          <div style="margin-bottom:12px;">
+            <div class="modal-field-label">Nilai Lama</div>
+            <div id="confirmOldValue" class="modal-field-value">-</div>
+          </div>
+          
+          <div style="margin-bottom:12px;">
+            <div class="modal-field-label">Nilai Baru</div>
+            <div id="confirmNewValue" class="modal-field-value">-</div>
+          </div>
+          
+          <!-- Consent untuk field sensitif -->
+          <div id="consentBox" class="modal-consent-box hidden">
+            <div style="margin-bottom:10px; font-size:12px; color:rgba(244,67,54,.92); font-weight:600;">Data Sensitif - Perlu Persetujuan</div>
+            <div class="consent-checkbox">
+              <input type="checkbox" id="consentCheckbox" onchange="updateConfirmButtonState()">
+              <label for="consentCheckbox">
+                Saya menyatakan data yang saya input sudah benar. Jika terjadi kesalahan input yang merugikan, menjadi tanggung jawab pribadi saya.
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-buttons">
+          <button class="btn secondary" onclick="cancelConfirmChange()">Batal</button>
+          <button class="btn primary" id="confirmSaveBtn" onclick="saveFieldChange()">Ya, Simpan</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Inisialisasi edit field state
+  window.editFieldState = {
+    fieldKey: '',
+    fieldLabel: '',
+    oldValue: '',
+    fieldType: 'text',
+    isSensitive: false
+  };
 }
+
 /* ===================== PLACEHOLDER ===================== */
 function renderPlaceholder_(title){
   root.innerHTML = `
@@ -461,5 +539,176 @@ function computeMasaKerja_(tmtVal){
   }
 }
 
-boot();
-</script>
+/* ===================== FIELD EDIT UTILITIES ===================== */
+
+function getSensitiveFieldsList_() {
+  return ['NIK', 'No._Rekening'];
+}
+
+function getFieldType_(fieldKey) {
+  const numberFields = ['NIK', 'No_KK', 'BPJS_Kes', 'BPJS_TK', 'Kode_Pos', 'No_HP', 'No._Rekening'];
+  const dateFields = ['TMT', 'Tanggal_Lahir'];
+  const selectFields = ['Jenis_Kelamin', 'Status_Nikah', 'Status_PTKP', 'Status_Kepeg', 'JABATAN'];
+  const textareaFields = ['Alamat'];
+  
+  if (numberFields.includes(fieldKey)) return 'number';
+  if (dateFields.includes(fieldKey)) return 'date';
+  if (selectFields.includes(fieldKey)) return 'select';
+  if (textareaFields.includes(fieldKey)) return 'textarea';
+  return 'text';
+}
+
+function startEditField(fieldKey, fieldLabel, currentValue, fieldType) {
+  if (!fieldKey) return;
+  
+  window.editFieldState = {
+    fieldKey: fieldKey,
+    fieldLabel: fieldLabel,
+    oldValue: currentValue || '',
+    fieldType: fieldType || 'text',
+    isSensitive: getSensitiveFieldsList_().includes(fieldKey)
+  };
+  
+  const modal = document.getElementById('editFieldModal');
+  if (!modal) return;
+  
+  document.getElementById('editFieldLabel').textContent = fieldLabel || fieldKey;
+  const input = document.getElementById('editFieldInput');
+  if (input) {
+    input.type = fieldType === 'number' ? 'number' : (fieldType === 'date' ? 'date' : 'text');
+    input.value = currentValue || '';
+    setTimeout(() => input.focus(), 100);
+  }
+  
+  modal.classList.remove('hidden');
+}
+
+function cancelEditField() {
+  const modal = document.getElementById('editFieldModal');
+  if (modal) modal.classList.add('hidden');
+  window.editFieldState = {};
+}
+
+function confirmEditField() {
+  const input = document.getElementById('editFieldInput');
+  if (!input) return;
+  
+  const newValue = input.value.trim();
+  if (!newValue) {
+    alert('Nilai tidak boleh kosong');
+    return;
+  }
+  
+  if (newValue === String(window.editFieldState.oldValue || '').trim()) {
+    alert('Nilai baru sama dengan nilai lama');
+    return;
+  }
+  
+  // Tutup edit modal
+  document.getElementById('editFieldModal').classList.add('hidden');
+  
+  // Buka confirm modal
+  showConfirmChangeModal(newValue);
+}
+
+function showConfirmChangeModal(newValue) {
+  const state = window.editFieldState;
+  
+  document.getElementById('confirmFieldLabel').textContent = state.fieldLabel || state.fieldKey;
+  document.getElementById('confirmOldValue').textContent = state.oldValue || '-';
+  document.getElementById('confirmNewValue').textContent = newValue || '-';
+  
+  const consentBox = document.getElementById('consentBox');
+  const consentCheckbox = document.getElementById('consentCheckbox');
+  
+  if (state.isSensitive) {
+    consentBox.classList.remove('hidden');
+    consentCheckbox.checked = false;
+  } else {
+    consentBox.classList.add('hidden');
+    consentCheckbox.checked = false;
+  }
+  
+  // Simpan new value di state
+  state.newValue = newValue;
+  
+  // Update button state
+  updateConfirmButtonState();
+  
+  const modal = document.getElementById('confirmChangeModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function updateConfirmButtonState() {
+  const state = window.editFieldState;
+  const btn = document.getElementById('confirmSaveBtn');
+  const consentCheckbox = document.getElementById('consentCheckbox');
+  
+  if (!btn) return;
+  
+  if (state.isSensitive) {
+    btn.disabled = !consentCheckbox.checked;
+  } else {
+    btn.disabled = false;
+  }
+}
+
+function cancelConfirmChange() {
+  const modal = document.getElementById('confirmChangeModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function saveFieldChange() {
+  const state = window.editFieldState;
+  
+  if (!state.fieldKey || state.newValue === undefined) {
+    alert('Data tidak lengkap');
+    return;
+  }
+  
+  const consentCheckbox = document.getElementById('consentCheckbox');
+  const consentChecked = state.isSensitive ? consentCheckbox.checked : false;
+  
+  // Disable button during save
+  const btn = document.getElementById('confirmSaveBtn');
+  if (btn) btn.disabled = true;
+  
+  google.script.run.withSuccessHandler(res => {
+    if (btn) btn.disabled = false;
+    
+    if (!res || !res.ok) {
+      alert('Gagal menyimpan: ' + (res?.msg || 'Error tidak diketahui'));
+      return;
+    }
+    
+    // Success
+    alert('Perubahan berhasil disimpan dan dicatat dalam histori');
+    cancelConfirmChange();
+    
+    // Refresh profil
+    renderProfil();
+  }).withFailureHandler(err => {
+    if (btn) btn.disabled = false;
+    alert('Error: ' + (err?.message || String(err)));
+  }).saveProfilFieldChange({
+    field_key: state.fieldKey,
+    field_label: state.fieldLabel,
+    old_value: state.oldValue,
+    new_value: state.newValue,
+    consent_checked: consentChecked
+  });
+}
+
+/* ===================== CLOSE MODALS ON OVERLAY CLICK ===================== */
+document.addEventListener('click', function(event) {
+  const editModal = document.getElementById('editFieldModal');
+  const confirmModal = document.getElementById('confirmChangeModal');
+  
+  if (event.target === editModal) {
+    editModal?.classList.add('hidden');
+  }
+  if (event.target === confirmModal) {
+    confirmModal?.classList.add('hidden');
+  }
+});
+

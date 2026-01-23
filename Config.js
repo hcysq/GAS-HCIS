@@ -197,6 +197,25 @@ function validateHCISConfig() {
 }
 
 /**
+ * Helper untuk buka sheet Histori Mutasi berdasarkan config
+ */
+function getHistoriMutasiSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  const gidRaw = cfgGet('HISTORI_MUTASI_GID', '');
+  const gid = Number(gidRaw);
+  
+  if (!isNaN(gid) && gid > 0) {
+    const byId = ss.getSheets().find(sh => sh.getSheetId() === gid);
+    if (byId) return { sheet: byId };
+    return { sheet: null, error:`Sheet dengan GID ${gid} (HISTORI_MUTASI_GID) tidak ditemukan di spreadsheet aktif.` };
+  }
+  
+  const sh = ss.getSheetByName('Histori_Mutasi');
+  if (sh) return { sheet: sh };
+  return { sheet: null, error:`Sheet "Histori_Mutasi" tidak ditemukan pada spreadsheet aktif.` };
+}
+
+/**
  * Validasi config untuk Profil (Users sheet only)
  * @returns {object} { ok, checks: {...}, suggestions: [...] }
  */
