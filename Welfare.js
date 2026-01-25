@@ -495,24 +495,16 @@ function generateAndSaveSlipGajiPDF(tahun, bulan) {
       const pdfFile = folder.createFile(pdfBlob);
       pdfFile.setName(fileName);
 
-      // Share ke email pegawai (viewer only)
-      const userEmail = Session.getEffectiveUser().getEmail();
-      try {
-        pdfFile.addEditor(userEmail);
-      } catch (e) {
-        // Log but don't fail
-        Logger.log('Warning: Could not share PDF to user email');
-      }
-
-      // Get PDF link
+      // Get PDF link sebelum sharing (untuk dipass ke notification function)
       const pdfLink = pdfFile.getUrl();
+      Logger.log('PDF File created: ' + fileName + ', Link: ' + pdfLink);
 
       // Format periode untuk notifikasi
       const bulanNamaNotif = typeof bulan === 'number' ? getBulanIndonesia_(bulan) : String(bulan).split(' ')[0];
       const periodeNotif = bulanNamaNotif + ' ' + tahunNum;
 
-      // Kirim notifikasi: email ke pegawai + WA ke pegawai + WA ke admin
-      sendSlipGajiNotifications_(nipUser, data.nama, periodeNotif, pdfLink);
+      // Kirim notifikasi dan share file: email ke pegawai + WA ke pegawai + WA ke admin
+      sendSlipGajiNotifications_(nipUser, data.nama, periodeNotif, pdfLink, pdfFile);
 
       // Delete temp document
       tempDoc.setTrashed(true);
@@ -585,7 +577,7 @@ function getUserContactInfo_(nip) {
 /**
  * Send slip gaji notifications: Email to employee + WA to employee + WA to admin
  */
-function sendSlipGajiNotifications_(nip, nama, periode, pdfLink) {
+function sendSlipGajiNotifications_(nip, nama, periode, pdfLink, pdfFile) {
   try {
     // Get contact info dari Users sheet
     const contact = getUserContactInfo_(nip);
@@ -597,59 +589,92 @@ function sendSlipGajiNotifications_(nip, nama, periode, pdfLink) {
     const email = contact.email;
     const wa = contact.wa;
 
-    // 1. Kirim email ke pegawai
+    Logger.log('=== Slip Gaji Notification Start ===');
+    Logger.log('NIP: ' + nip + ', Email: ' + email + ', WA: ' + wa);
+
+    // SHARE PDF FILE KE EMAIL PEGAWAI (VIEWER ONLY)
+    if (email && pdfFile) {
+      try {
+        pdfFile.addViewer(email);
+        Logger.log('PDF shared (viewer) to: ' + email);
+      } catch (e) {
+        Logger.log('ERROR: Gagal share PDF ke ' + email + ': ' + e.message);
+      }
+    }
+
+    // 1. Kirim email ke pegawai dengan template resmi
     if (email) {
-      const subject = `Slip Gaji ${periode} - ${nama}`;
-      const body = `Halo ${nama},\n\n` +
-        `Slip gaji Anda untuk periode ${periode} sudah tersedia.\n\n` +
-        `NIP: ${nip}\n` +
-        `Periode: ${periode}\n\n` +
-        `Silakan gunakan link berikut untuk mengakses file slip gaji:\n` +
-        `${pdfLink}\n\n` +
-        `Catatan:\n` +
-        `- Jika link tidak terbuka, cek email inbox atau folder spam\n` +
-        `- File dapat diunduh atau dilihat langsung di Google Drive\n` +
-        `- Hubungi admin HCM jika ada pertanyaan\n\n` +
-        `Salam,\nHuman Capital Management System`;
+      // Parse periode: ambil bulan dan tahun terpisah
+      const periodeParts = String(periode || '').trim().split(' ');
+      const bulanText = periodeParts[0] || 'Januari';
+      const tahunText = periodeParts[1] || '2026';
+
+      const subject = `Slip Gaji [${bulanText} ${tahunText}] [${nip}]`;
+      
+      const body = `Slip Gaji ${bulanText} ${tahunText}\n\n` +
+        `Bismillahirrahmanirrahim.\n\n` +
+        `Yth. ${nama},\n\n` +
+        `Sistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: 🗓️ ${bulanText} ${tahunText}\n\n` +
+        `Silakan akses atau unduh dokumen melalui tautan berikut: 🔗 ${pdfLink}\n\n` +
+        `Catatan Penting:\n` +
+        `1. Dokumen ini bersifat RAHASIA & PRIBADI.\n` +
+        `2. Mohon tidak membagikan tautan ini kepada pihak lain.\n` +
+        `3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n` +
+        `Terima kasih.\n\n` +
+        `======== 🤖 Pesan ini dibuat otomatis oleh Sistem HCIS Sabilul Qur'an`;
 
       try {
         GmailApp.sendEmail(
           email,
           subject,
-          body,
-          { from: 'humancapital.ysq@gmail.com' }
+          body
         );
-        Logger.log('Email sent to: ' + email);
+        Logger.log('SUCCESS: Email sent to ' + email);
       } catch (e) {
-        Logger.log('Warning: Gagal kirim email ke ' + email + ': ' + e.message);
+        Logger.log('ERROR: Gagal kirim email ke ' + email + ': ' + e.message);
       }
+    } else {
+      Logger.log('WARNING: Email pegawai tidak ditemukan, skip pengiriman email');
     }
 
     // 2. Kirim WA ke pegawai
     if (wa) {
-      const waMessage = `Slip gaji periode ${periode} sudah tersedia. Silakan cek email dan gunakan link berikut:\n${pdfLink}`;
+      const periodeParts = String(periode || '').trim().split(' ');
+      const bulanText = periodeParts[0] || 'Januari';
+      const tahunText = periodeParts[1] || '2026';
+      
+      const waMessage = `Slip Gaji ${bulanText} ${tahunText}\n\nBismillahirrahmanirrahim.\n\nYth. ${nama},\n\nSistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: 🗓️ ${bulanText} ${tahunText}\n\nSilakan akses atau unduh dokumen melalui tautan berikut: 🔗 ${pdfLink}\n\nCatatan Penting:\n1. Dokumen ini bersifat RAHASIA & PRIBADI.\n2. Mohon tidak membagikan tautan ini kepada pihak lain.\n3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n\nTerima kasih.`;
       try {
         sendWAViaStarsender_(wa, waMessage);
-        Logger.log('WA sent to: ' + wa);
+        Logger.log('SUCCESS: WA sent to ' + wa);
       } catch (e) {
-        Logger.log('Warning: Gagal kirim WA ke ' + wa + ': ' + e.message);
+        Logger.log('ERROR: Gagal kirim WA ke ' + wa + ': ' + e.message);
       }
+    } else {
+      Logger.log('WARNING: No WA number found for employee, skip WA to employee');
     }
 
     // 3. Kirim notifikasi ke admin via WA
     const adminWa = cfgGet('ADMIN_WA', '');
     if (adminWa) {
-      const adminMessage = `[Slip Gaji] Periode: ${periode}\nNIP: ${nip}\nNama: ${nama}\nStatus: Berhasil dibuat dan dikirim ke pegawai.`;
+      const periodeParts = String(periode || '').trim().split(' ');
+      const bulanText = periodeParts[0] || 'Januari';
+      const tahunText = periodeParts[1] || '2026';
+      
+      const adminMessage = `[Slip Gaji] Periode: ${bulanText} ${tahunText}\nNIP: ${nip}\nNama: ${nama}\nStatus: Berhasil dibuat dan dikirim ke pegawai.`;
       try {
         sendWAViaStarsender_(adminWa, adminMessage);
-        Logger.log('Admin notification sent');
+        Logger.log('SUCCESS: Admin notification sent to WA');
       } catch (e) {
-        Logger.log('Warning: Gagal kirim notifikasi admin: ' + e.message);
+        Logger.log('ERROR: Gagal kirim notifikasi admin: ' + e.message);
       }
+    } else {
+      Logger.log('WARNING: ADMIN_WA not configured, skip admin notification');
     }
 
+    Logger.log('=== Slip Gaji Notification Complete ===');
   } catch (e) {
-    Logger.log('Error sendSlipGajiNotifications_: ' + e.message);
+    Logger.log('ERROR in sendSlipGajiNotifications_: ' + e.message);
   }
 }
 
