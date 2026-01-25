@@ -327,6 +327,16 @@ function getProfilUsersDetail() {
 
       if (nipMatches || userIdAllowed) {
         const data = buildStructuredProfile_(row, headerMap);
+        
+        // Tambahkan data gaji dari sheet Slip Gaji
+        const nip = txt(pickCell_(row, headerMap, ['NIP']));
+        if (nip && nip !== '-') {
+          const salaryData = getLatestSlipGajiForProfile_(nip);
+          if (salaryData && salaryData.ok) {
+            Object.assign(data, salaryData.data);
+          }
+        }
+        
         return { ok:true, data };
       }
     }
@@ -384,6 +394,105 @@ function pickCell_(row, map, names) {
   const idx = findHeaderIdx_(map, names);
   if (idx === -1) return '';
   return row[idx];
+}
+
+/**
+ * Get latest slip gaji data for a given NIP (for profile display)
+ * Returns salary fields for Rincian Gaji section
+ */
+function getLatestSlipGajiForProfile_(nip) {
+  try {
+    if (!nip || nip === '-') return { ok: false };
+    
+    const { sheet: sh, error: sheetErr } = getSlipGajiSheet_();
+    if (!sh) return { ok: false, msg: sheetErr };
+    
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 2) return { ok: false };
+    
+    const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const headersRow = values[0].map(h => String(h || '').trim());
+    const headerMap = buildHeaderMap_(headersRow);
+    const nipNormalized = normalizeNIP_(nip);
+    
+    let latestRow = null;
+    let latestDate = null;
+    
+    // Find latest row by NIP (compare tanggal untuk mendapat yang terbaru)
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const rowNipKey = normalizeNIP_(pickCell_(row, headerMap, ['NIP']));
+      if (rowNipKey && rowNipKey === nipNormalized) {
+        latestRow = row;
+        break; // Assuming data is sorted by date DESC, take first match
+      }
+    }
+    
+    if (!latestRow) return { ok: false };
+    
+    // Build salary payload from row
+    const getRaw = (names) => pickCell_(latestRow, headerMap, Array.isArray(names) ? names : [names]);
+    const getNum = (names) => {
+      const v = getRaw(names);
+      const num = Number(String(v || '').replace(/[^\d.-]/g, ''));
+      return isNaN(num) ? 0 : num;
+    };
+    
+    const data = {
+      gajiPokok: getNum(['GAJI POKOK', 'Gaji Pokok']),
+      tunjanganKinerja: getNum(['TUNJANGAN KINERJA', 'Tunjangan Kinerja']),
+      tunjIstri: getNum(['TUNJ. ISTRI', 'Tunj. Istri', 'TUNJ ISTRI']),
+      tunjAnak: getNum(['TUNJ. ANAK', 'Tunj. Anak', 'TUNJ ANAK']),
+      tunjFungsional: getNum(['TUNJ. FUNGSIONAL', 'Tunj. Fungsional', 'TUNJ FUNGSIONAL']),
+      tunjJabatan: getNum(['TUNJ. JABATAN', 'Tunj. Jabatan', 'TUNJ JABATAN']),
+      tunjKualifikasiKhusus: getNum(['TUNJANGAN KUALIFIKASI KHUSUS', 'Tunjangan Kualifikasi Khusus']),
+      tunjanganBpjs: getNum(['TUNJ. BPJS', 'Tunj. BPJS', 'TUNJ BPJS']),
+      lembur: getNum(['LEMBUR', 'Lembur']),
+      rapelGaji: getNum(['RAPEL GAJI', 'Rapel Gaji']),
+      potKasbon: getNum(['POTONGAN KASBON', 'Potongan Kasbon']),
+      bpjs: getNum(['BPJS', 'BPJS Potongan']),
+      pendidikanAnak: getNum(['PENDIDIKAN ANAK', 'Pendidikan Anak']),
+      kekuranganJam: getNum(['Kekurangan Jam', 'KEKURANGAN JAM']),
+      bpjsJht: getNum(['BPJS TK (JHT)', 'BPJS TK JHT', 'BPJS JHT']),
+      bpjsJp: getNum(['BPJS TK (JP)', 'BPJS TK JP', 'BPJS JP']),
+      pph21: getNum(['PPH21', 'PPH 21']),
+      potAbsensi: getNum(['POTONGAN ABSENSI', 'Potongan Absensi', 'POT. ABSENSI']),
+      kinerjaAnnual: txt(getRaw(['KINERJA TAHUNAN', 'Kinerja Tahunan'])),
+      kinerjaMonthly: txt(getRaw(['KINERJA BULANAN', 'Kinerja Bulanan'])),
+      jumlahJam: txt(getRaw(['Jumlah Jam', 'JUMLAH JAM'])),
+      masaBekerja: txt(getRaw(['MASA BEKERJA', 'Masa Bekerja'])),
+      statusKepegawaian: txt(getRaw(['STATUS KEPEGAWAIAN', 'Status Kepegawaian'])),
+      pendidikanTerakhir: txt(getRaw(['PENDIDIKAN TERAKHIR', 'Pendidikan Terakhir'])),
+      suamiIstri: txt(getRaw(['SUAMI/ ISTRI', 'Suami/ Istri', 'SUAMI/ISTRI'])),
+      anak: txt(getRaw(['ANAK', 'Anak'])),
+      tanggal: txt(getRaw(['Tanggal', 'TANGGAL']))
+    };
+    
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, msg: `Error getLatestSlipGajiForProfile_: ${e && e.message ? e.message : e}` };
+  }
+}
+
+/**
+ * Get slip gaji sheet from config
+ */
+function getSlipGajiSheet_() {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const gidRaw = cfgGet('SLIP_GAJI_GID', '');
+    const gid = Number(gidRaw);
+    if (!isNaN(gid) && gid > 0) {
+      const byId = ss.getSheets().find(sh => sh.getSheetId() === gid);
+      if (byId) return { sheet: byId };
+    }
+    const sh = ss.getSheetByName('Slip_Gaji');
+    if (sh) return { sheet: sh };
+    return { sheet: null, error: `Sheet slip gaji tidak ditemukan` };
+  } catch (e) {
+    return { sheet: null, error: `Error getSlipGajiSheet_: ${e && e.message ? e.message : e}` };
+  }
 }
 
 function buildStructuredProfile_(row, headerMap) {

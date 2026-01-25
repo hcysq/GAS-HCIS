@@ -756,6 +756,7 @@ function renderSlipGajiResult_(data){
             {label: 'Tunj. Fungsional', val: data.tunjFungsional},
             {label: 'Tunj. Jabatan', val: data.tunjJabatan},
             {label: 'Tunj. Kualifikasi Khusus', val: data.tunjKualifikasiKhusus},
+            {label: 'Tunjangan BPJS', val: data.tunjanganBpjs},
             {label: 'Lembur', val: data.lembur},
             {label: 'Rapel Gaji', val: data.rapelGaji}
           ].map(item => `
@@ -772,8 +773,12 @@ function renderSlipGajiResult_(data){
           ${[
             {label: 'Potongan Kasbon', val: data.potKasbon},
             {label: 'BPJS', val: data.bpjs},
+            {label: 'BPJS TK (JHT)', val: data.bpjsJht},
+            {label: 'BPJS TK (JP)', val: data.bpjsJp},
+            {label: 'PPH21', val: data.pph21},
             {label: 'Pendidikan Anak', val: data.pendidikanAnak},
-            {label: 'Kekurangan Jam', val: data.kekuranganJam}
+            {label: 'Kekurangan Jam', val: data.kekuranganJam},
+            {label: 'Potongan Absensi', val: data.potAbsensi}
           ].map(item => `
             <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
               <div style="color:rgba(255,255,255,.75);">${item.label}</div>
