@@ -95,7 +95,7 @@ function renderRoute(route){
   // placeholders modul
   if(route==='projects') return renderPlaceholder_('Progres Proyek');
   if(route==='absensi') return renderPlaceholder_('Absensi');
-  if(route==='welfare') return renderPlaceholder_('Kesejahteraan');
+  if(route==='welfare') return renderWelfare();
   if(route==='development') return renderPlaceholder_('Pengembangan');
 
   return renderDashboard();
@@ -159,17 +159,17 @@ function renderDashboard(){
     </div>
   `;
 
-  // ringan: ambil unit/jabatan dari Masterdata
+  // Ambil unit/jabatan dengan struktur data yang sama seperti di Profil tab
   google.script.run.withSuccessHandler(res=>{
     if(!res || !res.ok || !res.data) return;
     const d = res.data;
-    const unit = (d['UNIT']||d['Unit']||'-');
-    const jabatan = (d['JABATAN']||d['JABATAN STRUKTURAL']||d['JABATAN FUNGSIONAL']||'-');
+    const unit = escapeHtml(d.summary?.unit || '-');
+    const jabatan = escapeHtml(d.summary?.jabatan || '-');
     const elUnit = document.getElementById('dashUnit');
     const elJab = document.getElementById('dashJabatan');
-    if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
-    if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
-  }).getProfilMasterdataSaya();
+    if (elUnit) elUnit.innerHTML = `Unit: <b>${unit}</b>`;
+    if (elJab)  elJab.innerHTML  = `Jabatan: <b>${jabatan}</b>`;
+  }).getProfilUsersDetail();
 }
 
 
@@ -249,14 +249,30 @@ function renderProfilLayout_(d){
   const fallbackNotice = '<span class="muted">-</span>';
   
   // Updated styling untuk konsistensi dengan Dashboard
-  const item = (lbl, val, fieldKey) => `
+  const item = (lbl, val, fieldKey) => {
+    const safeVal = escapeHtml(String(val || ''));
+    const safeLbl = escapeHtml(String(lbl || ''));
+    const safeKey = escapeHtml(String(fieldKey || ''));
+    return `
     <div class="field-item">
-      <div class="field-label">${escapeHtml(lbl)}</div>
-      <div class="field-value-display" data-field-key="${escapeHtml(fieldKey || '')}">${val || '-'}</div>
+      <div class="field-label">${safeLbl}</div>
+      <div class="field-value-display" data-field-key="${safeKey}">${val || '-'}</div>
       <div class="field-actions">
-        <button class="edit-btn" onclick="startEditField('${escapeHtml(fieldKey || '')}', '${escapeHtml(lbl || '')}', ${JSON.stringify(val).replace(/"/g, '&quot;')}, '${getFieldType_(fieldKey)}')">✏️</button>
+        <button class="edit-btn" onclick="startEditField('${safeKey}', '${safeLbl}', '${safeVal}', '${getFieldType_(fieldKey)}')">✏️</button>
       </div>
     </div>`;
+  };
+  
+  // Field read-only (tidak bisa diedit)
+  const itemReadonly = (lbl, val) => {
+    const safeLbl = escapeHtml(String(lbl || ''));
+    return `
+    <div class="field-item">
+      <div class="field-label">${safeLbl}</div>
+      <div class="field-value-display">${val || '-'}</div>
+      <div class="field-actions" style="opacity:0;"></div>
+    </div>`;
+  };
 
   const linkIcon = (url) => url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="text-decoration:none;">🔗</a>` : '-';
 
@@ -296,19 +312,19 @@ function renderProfilLayout_(d){
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Ringkasan Kepegawaian</div>
           ${item('Nama', escapeHtml(d.summary.nama || '-'), 'Nama' )}
-          ${item('NIP', escapeHtml(d.summary.nip || '-'), 'NIP' )}
-          ${item('Unit', escapeHtml(d.summary.unit || '-'), 'UNIT' )}
-          ${item('Jabatan', escapeHtml(d.summary.jabatan || '-'), 'JABATAN' )}
-          ${item('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-'), 'Status_Kepeg' )}
-          ${item('TMT', escapeHtml(d.summary.tmt || '-'), 'TMT' )}
-          ${item('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-'), '' )}
+          ${itemReadonly('NIP', escapeHtml(d.summary.nip || '-'))}
+          ${itemReadonly('Unit', escapeHtml(d.summary.unit || '-'))}
+          ${itemReadonly('Jabatan', escapeHtml(d.summary.jabatan || '-'))}
+          ${itemReadonly('Status Kepegawaian', escapeHtml(d.summary.status_kepeg || '-'))}
+          ${itemReadonly('TMT', escapeHtml(d.summary.tmt || '-'))}
+          ${itemReadonly('Masa Kerja', escapeHtml(d.summary.masa_kerja || '-'))}
         </div>
 
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Data Pribadi</div>
           ${item('NIK', d.personal.nik ? escapeHtml(maskNIK_(d.personal.nik)) : fallbackNotice, 'NIK')}
           ${item('TTL', escapeHtml(d.personal.ttl || '-'), '' )}
-          ${item('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-'), 'Jenis_Kelamin' )}
+          ${itemReadonly('Jenis Kelamin', escapeHtml(d.personal.jenis_kelamin || '-'))}
           ${item('Status Pernikahan', escapeHtml(d.personal.status_nikah || '-'), 'Status_Nikah' )}
           ${item('No. Kartu Keluarga', escapeHtml(d.personal.no_kk || '-'), 'No_KK' )}
           ${item('Ayah Kandung', escapeHtml(d.personal.ayah_kandung || '-'), 'Ayah_Kandung' )}
@@ -325,7 +341,6 @@ function renderProfilLayout_(d){
         <div style="border-radius:14px; padding:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
           <div style="font-weight:700; margin-bottom:12px; font-size:14px; color:rgba(255,255,255,.90);">Kontak & Alamat</div>
           ${item('No. HP', escapeHtml(d.contact.hp || '-'), 'No_HP' )}
-          ${item('WhatsApp', escapeHtml(d.contact.wa || '-'), 'WhatsApp' )}
           ${item('Email', escapeHtml(d.contact.email || '-'), 'Email' )}
           ${item('Alamat', alamat, 'Alamat')}
           ${item('Kelurahan / Desa', kelurahan, 'Kelurahan_Desa')}
@@ -452,6 +467,418 @@ function renderPlaceholder_(title){
       </div>
     </div>
   `;
+}
+
+/* ===================== WELFARE / KESEJAHTERAAN ===================== */
+function renderWelfare(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Kesejahteraan</div>
+      <div class="muted" style="margin-bottom:12px;">Kelola slip gaji, klaim, dan tunjangan kesejahteraan.</div>
+    </div>
+
+    <!-- Sub-menu Welfare -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(14,165,233,.15);" onmouseover="this.style.background='rgba(14,165,233,.25)'" onmouseout="this.style.background='rgba(14,165,233,.15)';" onclick="welfareGoToMenu_('slipGaji')">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">📄 Slip Gaji</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Lihat slip gaji Anda</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; opacity:0.6;" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">💰 Klaim</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Ajukan klaim kesejahteraan</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; opacity:0.6;" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">🧾 Reimbursement</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Ajukan reimbursement</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; cursor:pointer; opacity:0.6;" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">🏦 Pinjaman</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Ajukan pinjaman</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+    </div>
+  `;
+  
+  // Initialize welfare state
+  window.welfareState = {
+    currentMenu: 'main',
+    selectedTahun: null,
+    selectedBulan: null,
+    slipData: null
+  };
+}
+
+function welfareGoToMenu_(menu){
+  window.welfareState.currentMenu = menu;
+  
+  if(menu === 'slipGaji'){
+    renderSlipGaji_();
+  }
+}
+
+function renderSlipGaji_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Slip Gaji</div>
+      <div class="muted" style="margin-bottom:12px;">Lihat detail slip gaji Anda per bulan.</div>
+    </div>
+
+    <!-- Filter -->
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:12px; font-size:14px;">Pilih Periode</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:0;">
+        <div>
+          <label style="display:block; font-size:12px; color:rgba(255,255,255,.70); margin-bottom:6px;">Tahun</label>
+          <select id="slipTahun" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(14,165,233,.18); color:rgba(255,255,255,.96); font-weight:600;" onchange="onTahunChange()">
+            <option value="">-- Memuat --</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:rgba(255,255,255,.70); margin-bottom:6px;">Bulan</label>
+          <select id="slipBulan" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(14,165,233,.18); color:rgba(255,255,255,.96); font-weight:600;" onchange="updateTampilkanButton()">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+          <button id="btnTampilSlip" class="btn primary" style="width:100%;" onclick="tampilkanSlipGaji()" disabled>Tampilkan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hasil Slip -->
+    <div id="slipResultContainer" style="display:none;"></div>
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="renderWelfare()">‹ Kembali ke Kesejahteraan</button>
+    </div>
+  `;
+  
+  // Load available tahun/bulan
+  loadAvailableSlipGajiBulan_();
+}
+
+function loadAvailableSlipGajiBulan_(){
+  google.script.run
+    .withSuccessHandler(res => {
+      if(!res || !res.ok){
+        document.getElementById('slipResultContainer').innerHTML = `<div class="card"><div style="color:#c0392b;">Error: ${escapeHtml(res?.msg || 'Gagal memuat data')}</div></div>`;
+        document.getElementById('slipResultContainer').style.display = 'block';
+        return;
+      }
+
+      const { tahunList, bulanPerTahun } = res.data;
+      
+      // Populate tahun
+      const selTahun = document.getElementById('slipTahun');
+      selTahun.innerHTML = '<option value="">-- Pilih Tahun --</option>';
+      tahunList.forEach(tahun => {
+        const opt = document.createElement('option');
+        opt.value = tahun;
+        opt.textContent = tahun;
+        selTahun.appendChild(opt);
+      });
+      
+      // Default ke tahun terbaru
+      if(tahunList.length > 0){
+        selTahun.value = tahunList[tahunList.length - 1];
+        onTahunChange();
+      }
+      
+      // Store untuk reference
+      window.slipGajiData = { tahunList, bulanPerTahun };
+    })
+    .getAvailableSlipGajiBulan();
+}
+
+function onTahunChange(){
+  const tahun = document.getElementById('slipTahun').value;
+  const selBulan = document.getElementById('slipBulan');
+  
+  if(!tahun || !window.slipGajiData){
+    selBulan.innerHTML = '<option value="">-- Pilih Tahun Terlebih Dahulu --</option>';
+    return;
+  }
+
+  const bulanList = window.slipGajiData.bulanPerTahun[tahun] || [];
+  selBulan.innerHTML = '<option value="">-- Pilih Bulan --</option>';
+  
+  // Filter out empty/"-" values
+  const validBulan = bulanList.filter(nama => nama && nama.trim() && nama !== '-');
+  
+  validBulan.forEach(nama => {
+    const opt = document.createElement('option');
+    opt.value = nama;
+    opt.textContent = nama;
+    selBulan.appendChild(opt);
+  });
+  
+  updateTampilkanButton();
+}
+
+function updateTampilkanButton(){
+  const tahun = document.getElementById('slipTahun').value;
+  const bulan = document.getElementById('slipBulan').value;
+  const btn = document.getElementById('btnTampilSlip');
+  
+  btn.disabled = !tahun || !bulan;
+}
+
+function tampilkanSlipGaji(){
+  const tahun = document.getElementById('slipTahun')?.value;
+  const bulan = document.getElementById('slipBulan')?.value;
+
+  if(!tahun || !bulan){
+    alert('Pilih Tahun dan Bulan terlebih dahulu');
+    return;
+  }
+
+  const resultContainer = document.getElementById('slipResultContainer');
+  resultContainer.innerHTML = '<div class="card"><div class="muted">Memuat slip gaji...</div></div>';
+  resultContainer.style.display = 'block';
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if(!res || !res.ok){
+        resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Slip Gaji Tidak Ditemukan</div><div class="muted" style="margin-top:6px;">${escapeHtml(res?.msg || 'Slip gaji periode ini belum tersedia.')}</div></div>`;
+        return;
+      }
+      renderSlipGajiResult_(res.data);
+    })
+    .withFailureHandler(err => {
+      resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Error</div><div class="muted" style="margin-top:6px;">${escapeHtml(err?.message || String(err))}</div></div>`;
+    })
+    .getSlipGaji(Number(tahun), bulan);
+}
+
+function renderSlipGajiResult_(data){
+  const resultContainer = document.getElementById('slipResultContainer');
+  
+  // Format currency
+  const formatCurrency = (num) => {
+    if(!num || num === 0) return '-';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
+  };
+
+  // Format percentage
+  const formatPercentage = (val) => {
+    if(!val) return '-';
+    const str = String(val).trim();
+    // If already contains %, return as-is
+    if(str.includes('%')) return str;
+    // Parse as number
+    const num = parseFloat(str.replace(',', '.'));
+    if(isNaN(num)) return str;
+    // If <= 1, multiply by 100
+    if(num <= 1) return (num * 100).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%';
+    // If > 1 and <= 100, format as-is
+    if(num <= 100) return num.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%';
+    return str; // Return original if out of range
+  };
+
+  const safeVal = (val) => val && val !== '-' ? val : '-';
+
+  // Card Identitas
+  const identitasHtml = `
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:12px; font-size:14px;">Identitas</div>
+      <div style="display:flex; gap:12px; margin-bottom:8px;">
+        <div style="flex:0 0 100px; color:rgba(255,255,255,.70); font-size:13px;">Nama</div>
+        <div style="flex:1; font-weight:600; color:rgba(255,255,255,.92);">${escapeHtml(data.nama)}</div>
+      </div>
+      <div style="display:flex; gap:12px; margin-bottom:8px;">
+        <div style="flex:0 0 100px; color:rgba(255,255,255,.70); font-size:13px;">NIP</div>
+        <div style="flex:1; font-weight:600; color:rgba(255,255,255,.92);">${escapeHtml(data.nip)}</div>
+      </div>
+      <div style="display:flex; gap:12px; margin-bottom:8px;">
+        <div style="flex:0 0 100px; color:rgba(255,255,255,.70); font-size:13px;">Unit</div>
+        <div style="flex:1; font-weight:600; color:rgba(255,255,255,.92);">${escapeHtml(data.unit)}</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="flex:0 0 100px; color:rgba(255,255,255,.70); font-size:13px;">Jabatan</div>
+        <div style="flex:1; font-weight:600; color:rgba(255,255,255,.92);">${escapeHtml(data.jabatan)}</div>
+      </div>
+    </div>
+  `;
+
+  // Card Angka Utama
+  const angkaUtamaHtml = `
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:12px; font-size:14px;">Ringkasan Gaji</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div style="background:rgba(34,197,94,.15); border-radius:10px; padding:12px;">
+          <div style="font-size:12px; color:rgba(34,197,94,.90); margin-bottom:6px;">Gaji Neto</div>
+          <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">${formatCurrency(data.gajiNeto)}</div>
+        </div>
+        <div style="background:rgba(100,200,255,.15); border-radius:10px; padding:12px;">
+          <div style="font-size:12px; color:rgba(100,200,255,.90); margin-bottom:6px;">Total Bruto</div>
+          <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">${formatCurrency(data.totalBruto)}</div>
+        </div>
+        <div style="background:rgba(244,67,54,.15); border-radius:10px; padding:12px;">
+          <div style="font-size:12px; color:rgba(244,67,54,.90); margin-bottom:6px;">Total Potongan</div>
+          <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">${formatCurrency(data.totalPotongan)}</div>
+        </div>
+        ${data.gajiProrata ? `<div style="background:rgba(255,165,0,.15); border-radius:10px; padding:12px;">
+          <div style="font-size:12px; color:rgba(255,165,0,.90); margin-bottom:6px;">Gaji Prorata</div>
+          <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">${formatCurrency(data.gajiProrata)}</div>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  // Rincian Pendapatan & Potongan
+  const rincianHtml = `
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:12px; font-size:14px;">Rincian Gaji</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <!-- Pendapatan -->
+        <div>
+          <div style="font-weight:600; color:rgba(34,197,94,.95); margin-bottom:10px; font-size:13px;">Pendapatan</div>
+          ${[
+            {label: 'Gaji Pokok', val: data.gajiPokok},
+            {label: 'Tunjangan Kinerja', val: data.tunjanganKinerja},
+            {label: 'Tunj. Istri', val: data.tunjIstri},
+            {label: 'Tunj. Anak', val: data.tunjAnak},
+            {label: 'Tunj. Fungsional', val: data.tunjFungsional},
+            {label: 'Tunj. Jabatan', val: data.tunjJabatan},
+            {label: 'Tunj. Kualifikasi Khusus', val: data.tunjKualifikasiKhusus},
+            {label: 'Lembur', val: data.lembur},
+            {label: 'Rapel Gaji', val: data.rapelGaji}
+          ].map(item => `
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
+              <div style="color:rgba(255,255,255,.75);">${item.label}</div>
+              <div style="color:rgba(255,255,255,.92); font-weight:600;">${formatCurrency(item.val)}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Potongan -->
+        <div>
+          <div style="font-weight:600; color:rgba(244,67,54,.95); margin-bottom:10px; font-size:13px;">Potongan</div>
+          ${[
+            {label: 'Potongan Kasbon', val: data.potKasbon},
+            {label: 'BPJS', val: data.bpjs},
+            {label: 'Pendidikan Anak', val: data.pendidikanAnak},
+            {label: 'Kekurangan Jam', val: data.kekuranganJam}
+          ].map(item => `
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px;">
+              <div style="color:rgba(255,255,255,.75);">${item.label}</div>
+              <div style="color:rgba(255,255,255,.92); font-weight:600;">${formatCurrency(item.val)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Detail Lainnya (Accordion)
+  const detailHtml = `
+    <div class="card">
+      <div style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="toggleAccordion('detailAccordion')">
+        <div style="font-weight:700; font-size:14px;">Detail Lainnya</div>
+        <div id="detailAccordionIcon" style="font-size:18px; transition:transform 0.3s ease;">▼</div>
+      </div>
+      <div id="detailAccordion" style="display:none; margin-top:12px;">
+        ${[
+          {label: 'Kinerja Tahunan', val: data.kinerjaAnnual, isPercent: true},
+          {label: 'Kinerja Bulanan', val: data.kinerjaMonthly, isPercent: true},
+          {label: 'Jumlah Jam', val: data.jumlahJam},
+          {label: 'Masa Bekerja', val: data.masaBekerja},
+          {label: 'Status Kepegawaian', val: data.statusKepegawaian},
+          {label: 'Pendidikan Terakhir', val: data.pendidikanTerakhir},
+          {label: 'Suami/Istri', val: data.suamiIstri},
+          {label: 'Anak', val: data.anak},
+          {label: 'Tanggal Slip', val: data.tanggal}
+        ].map(item => `
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.08);">
+            <div style="color:rgba(255,255,255,.75);">${item.label}</div>
+            <div style="color:rgba(255,255,255,.92); font-weight:600; text-align:right;">${escapeHtml(item.isPercent ? formatPercentage(item.val) : safeVal(item.val))}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // Button Kirim Slip PDF
+  const downloadHtml = `
+    <div class="card">
+      <button class="btn primary" style="width:100%; margin-bottom:8px;" onclick="kirimSlipGajiPDF()">📧 Kirim Slip (PDF)</button>
+      <div id="pdfResultMsg" style="display:none; padding:10px; border-radius:8px; font-size:13px; margin-top:8px;"></div>
+    </div>
+  `;
+
+  resultContainer.innerHTML = identitasHtml + angkaUtamaHtml + rincianHtml + detailHtml + downloadHtml;
+}
+
+function toggleAccordion(id){
+  const el = document.getElementById(id);
+  const icon = document.getElementById(id + 'Icon');
+  if(!el) return;
+  
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  if(icon) icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function kirimSlipGajiPDF(){
+  const tahun = document.getElementById('slipTahun')?.value;
+  const bulan = document.getElementById('slipBulan')?.value;
+
+  if(!tahun || !bulan){
+    alert('Pilih Tahun dan Bulan terlebih dahulu');
+    return;
+  }
+
+  const msgEl = document.getElementById('pdfResultMsg');
+  msgEl.innerHTML = '⏳ Membuat dan mengirim slip...';
+  msgEl.style.display = 'block';
+  msgEl.style.background = 'rgba(33, 150, 243, 0.15)';
+  msgEl.style.color = 'rgba(33, 150, 243, 0.95)';
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if(!res || !res.ok){
+        // Check if already exists
+        if(res?.alreadyExists){
+          msgEl.innerHTML = `⚠️ ${escapeHtml(res.msg)}`;
+          msgEl.style.background = 'rgba(255, 152, 0, 0.15)';
+          msgEl.style.color = 'rgba(255, 152, 0, 0.95)';
+        } else {
+          msgEl.innerHTML = `❌ ${escapeHtml(res?.msg || 'Gagal membuat slip')}`;
+          msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
+          msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
+        }
+        return;
+      }
+      
+      msgEl.innerHTML = `✅ ${escapeHtml(res.msg)}`;
+      msgEl.style.background = 'rgba(76, 175, 80, 0.15)';
+      msgEl.style.color = 'rgba(76, 175, 80, 0.95)';
+    })
+    .withFailureHandler(err => {
+      msgEl.innerHTML = `❌ ${escapeHtml(err?.message || 'Gagal membuat slip')}`;
+      msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
+      msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
+    })
+    .generateAndSaveSlipGajiPDF(parseInt(tahun), bulan);
+}
+
+function showComingSoon(){
+  alert('Coming Soon: fitur sedang disiapkan.');
 }
 
 /* ===================== NAV ===================== */
@@ -612,16 +1039,16 @@ function confirmEditField() {
 }
 
 function showConfirmChangeModal(newValue) {
-  const state = window.editFieldState;
+  const editState = window.editFieldState;
   
-  document.getElementById('confirmFieldLabel').textContent = state.fieldLabel || state.fieldKey;
-  document.getElementById('confirmOldValue').textContent = state.oldValue || '-';
+  document.getElementById('confirmFieldLabel').textContent = editState.fieldLabel || editState.fieldKey;
+  document.getElementById('confirmOldValue').textContent = editState.oldValue || '-';
   document.getElementById('confirmNewValue').textContent = newValue || '-';
   
   const consentBox = document.getElementById('consentBox');
   const consentCheckbox = document.getElementById('consentCheckbox');
   
-  if (state.isSensitive) {
+  if (editState.isSensitive) {
     consentBox.classList.remove('hidden');
     consentCheckbox.checked = false;
   } else {
@@ -629,8 +1056,8 @@ function showConfirmChangeModal(newValue) {
     consentCheckbox.checked = false;
   }
   
-  // Simpan new value di state
-  state.newValue = newValue;
+  // Simpan new value di editFieldState
+  window.editFieldState.newValue = newValue;
   
   // Update button state
   updateConfirmButtonState();
@@ -640,13 +1067,13 @@ function showConfirmChangeModal(newValue) {
 }
 
 function updateConfirmButtonState() {
-  const state = window.editFieldState;
+  const editState = window.editFieldState;
   const btn = document.getElementById('confirmSaveBtn');
   const consentCheckbox = document.getElementById('consentCheckbox');
   
   if (!btn) return;
   
-  if (state.isSensitive) {
+  if (editState.isSensitive) {
     btn.disabled = !consentCheckbox.checked;
   } else {
     btn.disabled = false;
