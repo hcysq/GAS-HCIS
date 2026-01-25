@@ -504,15 +504,22 @@ function generateAndSaveSlipGajiPDF(tahun, bulan) {
         Logger.log('Warning: Could not share PDF to user email');
       }
 
-      // OPTIONAL: Kirim notifikasi WA ke admin & email ke pegawai
-      // (Implement later jika diperlukan)
+      // Get PDF link
+      const pdfLink = pdfFile.getUrl();
+
+      // Format periode untuk notifikasi
+      const bulanNamaNotif = typeof bulan === 'number' ? getBulanIndonesia_(bulan) : String(bulan).split(' ')[0];
+      const periodeNotif = bulanNamaNotif + ' ' + tahunNum;
+
+      // Kirim notifikasi: email ke pegawai + WA ke pegawai + WA ke admin
+      sendSlipGajiNotifications_(nipUser, data.nama, periodeNotif, pdfLink);
 
       // Delete temp document
       tempDoc.setTrashed(true);
 
       return {
         ok: true,
-        msg: 'Slip berhasil dibuat dan dikirim ke email Anda. Admin HCM juga menerima notifikasi.'
+        msg: '✅ Slip berhasil dibuat. Silakan cek Email (folder inbox atau spam) dan WhatsApp anda.'
       };
     } catch (docError) {
       // Clean up temp doc
@@ -523,5 +530,174 @@ function generateAndSaveSlipGajiPDF(tahun, bulan) {
   } catch (e) {
     Logger.log('Error generateAndSaveSlipGajiPDF: ' + e.message);
     return { ok: false, msg: 'Error: ' + e.message };
+  }
+}
+
+/**
+ * Get user contact info (email & WA) from Users sheet by NIP
+ */
+function getUserContactInfo_(nip) {
+  try {
+    const nipNormalized = normalizeNIP_(nip);
+    if (!nipNormalized) return null;
+
+    const ss = SpreadsheetApp.getActive();
+    
+    // Get Users sheet
+    const gidRaw = cfgGet('USERS_GID', '');
+    const gid = Number(gidRaw);
+    let sh = null;
+    
+    if (!isNaN(gid) && gid > 0) {
+      sh = ss.getSheets().find(s => s.getSheetId() === gid);
+    }
+    if (!sh) {
+      sh = ss.getSheetByName('Users');
+    }
+    if (!sh) return null;
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 2) return null;
+
+    const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const headersRow = values[0].map(h => String(h || '').trim());
+    const headerMap = buildHeaderMap_(headersRow);
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const rowNip = normalizeNIP_(pickCell_(row, headerMap, ['NIP']));
+      if (rowNip && rowNip === nipNormalized) {
+        const email = txt(pickCell_(row, headerMap, ['Email', 'EMAIL']));
+        const wa = txt(pickCell_(row, headerMap, ['No_HP', 'No_WA', 'WA', 'WhatsApp']));
+        const nama = txt(pickCell_(row, headerMap, ['Nama', 'NAMA']));
+        return { email: email || '', wa: wa || '', nama: nama || '' };
+      }
+    }
+
+    return null;
+  } catch (e) {
+    Logger.log('Error getUserContactInfo_: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Send slip gaji notifications: Email to employee + WA to employee + WA to admin
+ */
+function sendSlipGajiNotifications_(nip, nama, periode, pdfLink) {
+  try {
+    // Get contact info dari Users sheet
+    const contact = getUserContactInfo_(nip);
+    if (!contact) {
+      Logger.log('Warning: Tidak dapat menemukan info kontak untuk NIP ' + nip);
+      return;
+    }
+
+    const email = contact.email;
+    const wa = contact.wa;
+
+    // 1. Kirim email ke pegawai
+    if (email) {
+      const subject = `Slip Gaji ${periode} - ${nama}`;
+      const body = `Halo ${nama},\n\n` +
+        `Slip gaji Anda untuk periode ${periode} sudah tersedia.\n\n` +
+        `NIP: ${nip}\n` +
+        `Periode: ${periode}\n\n` +
+        `Silakan gunakan link berikut untuk mengakses file slip gaji:\n` +
+        `${pdfLink}\n\n` +
+        `Catatan:\n` +
+        `- Jika link tidak terbuka, cek email inbox atau folder spam\n` +
+        `- File dapat diunduh atau dilihat langsung di Google Drive\n` +
+        `- Hubungi admin HCM jika ada pertanyaan\n\n` +
+        `Salam,\nHuman Capital Management System`;
+
+      try {
+        GmailApp.sendEmail(
+          email,
+          subject,
+          body,
+          { from: 'humancapital.ysq@gmail.com' }
+        );
+        Logger.log('Email sent to: ' + email);
+      } catch (e) {
+        Logger.log('Warning: Gagal kirim email ke ' + email + ': ' + e.message);
+      }
+    }
+
+    // 2. Kirim WA ke pegawai
+    if (wa) {
+      const waMessage = `Slip gaji periode ${periode} sudah tersedia. Silakan cek email dan gunakan link berikut:\n${pdfLink}`;
+      try {
+        sendWAViaStarsender_(wa, waMessage);
+        Logger.log('WA sent to: ' + wa);
+      } catch (e) {
+        Logger.log('Warning: Gagal kirim WA ke ' + wa + ': ' + e.message);
+      }
+    }
+
+    // 3. Kirim notifikasi ke admin via WA
+    const adminWa = cfgGet('ADMIN_WA', '');
+    if (adminWa) {
+      const adminMessage = `[Slip Gaji] Periode: ${periode}\nNIP: ${nip}\nNama: ${nama}\nStatus: Berhasil dibuat dan dikirim ke pegawai.`;
+      try {
+        sendWAViaStarsender_(adminWa, adminMessage);
+        Logger.log('Admin notification sent');
+      } catch (e) {
+        Logger.log('Warning: Gagal kirim notifikasi admin: ' + e.message);
+      }
+    }
+
+  } catch (e) {
+    Logger.log('Error sendSlipGajiNotifications_: ' + e.message);
+  }
+}
+
+/**
+ * Send message via Starsender WA API
+ */
+function sendWAViaStarsender_(waNumber, message) {
+  try {
+    const url = cfgRequireString('STARSENDER_URL');
+    const apiKey = cfgRequireString('STARSENDER_APIKEY');
+    const modeRaw = cfgGet('STARSENDER_MODE', '');
+    const mode = String(modeRaw || '').trim().toLowerCase();
+
+    // Format nomor: 62xxxxxxxxxx (tanpa +)
+    const tujuan = String(waNumber || '').replace(/^\+/, '').replace(/[^\d]/g, '');
+    if (!tujuan || tujuan.length < 10) {
+      throw new Error('Format nomor WA tidak valid: ' + waNumber);
+    }
+
+    const headers = {};
+    const payload = {
+      tujuan: tujuan,
+      message: message
+    };
+
+    if (mode === 'bearer') {
+      headers.Authorization = `Bearer ${apiKey}`;
+    } else if (mode === 'legacy_sendtext') {
+      headers.apikey = apiKey;
+    } else {
+      headers.apikey = apiKey;
+      payload.api_key = apiKey;
+      const device = String(cfgGet('STARSENDER_DEVICE', '') || '').trim();
+      if (device) payload.device = device;
+    }
+
+    const options = {
+      method: 'post',
+      headers,
+      payload,
+      muteHttpExceptions: true
+    };
+
+    const resp = UrlFetchApp.fetch(url, options);
+    if (resp.getResponseCode() >= 400) {
+      throw new Error('API error: ' + resp.getResponseCode());
+    }
+  } catch (e) {
+    throw new Error('Gagal kirim WA via Starsender: ' + e.message);
   }
 }
