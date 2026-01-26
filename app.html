@@ -20,32 +20,18 @@ let state = {
   route: 'login',
 };
 
-const AUTH_STORAGE_KEY = 'HCIS_AUTH_SESSION_V1';
+function getDeviceId_(){
+  return sessionStorage.getItem('deviceId') || '';
+}
 
-function getStoredAuth_(){
-  try{
-    return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY) || '{}');
-  }catch(e){
-    return {};
+function setDeviceId_(deviceId){
+  if (deviceId) {
+    sessionStorage.setItem('deviceId', deviceId);
   }
 }
 
-function setStoredAuth_(auth){
-  if(!auth || !auth.deviceId || !auth.token || !auth.nip) return;
-  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-    deviceId: auth.deviceId,
-    token: auth.token,
-    nip: auth.nip
-  }));
-}
-
-function clearStoredAuth_(){
-  sessionStorage.removeItem(AUTH_STORAGE_KEY);
-}
-
-function withAuthPayload_(payload = {}){
-  const auth = getStoredAuth_();
-  return Object.assign({}, payload, auth);
+function getAuthPayload_(){
+  return { deviceId: getDeviceId_() };
 }
 
 function isAuthed(){ return !!(state.me && state.me.ok); }
@@ -109,10 +95,11 @@ function boot(){
       renderLogin();
       return;
     }
+    setDeviceId_(res?.deviceId);
     state.me=res;
     setStoredAuth_(res);
     goto('dash');
-  }).authMe(authPayload);
+  }).authMe(getAuthPayload_());
 }
 
 /* ===================== LOGIN ===================== */
@@ -324,7 +311,7 @@ function renderDashboard(){
     const elJab = document.getElementById('dashJabatan');
     if (elUnit) elUnit.innerHTML = `Unit: <b>${unit}</b>`;
     if (elJab)  elJab.innerHTML  = `Jabatan: <b>${jabatan}</b>`;
-  }).getProfilUsersDetail(withAuthPayload_());
+  }).getProfilUsersDetail(getAuthPayload_());
 }
 
 
@@ -349,7 +336,7 @@ function renderProfil(){
       const payload = buildProfilPayload_(res.data);
       renderProfilLayout_(payload);
     })
-    .getProfilUsersDetail(withAuthPayload_());
+    .getProfilUsersDetail(getAuthPayload_());
 }
 
 function buildProfilPayload_(raw){
@@ -912,7 +899,7 @@ function loadAvailableSlipGajiBulan_(){
       // Store untuk reference
       window.slipGajiData = { tahunList, bulanPerTahun };
     })
-    .getAvailableSlipGajiBulan(withAuthPayload_());
+    .getAvailableSlipGajiBulan(getAuthPayload_());
 }
 
 function onTahunChange(){
@@ -972,7 +959,7 @@ function tampilkanSlipGaji(){
     .withFailureHandler(err => {
       resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Error</div><div class="muted" style="margin-top:6px;">${escapeHtml(err?.message || String(err))}</div></div>`;
     })
-    .getSlipGaji(withAuthPayload_({ tahun: Number(tahun), bulan: bulan }));
+    .getSlipGaji({ tahun: Number(tahun), bulan, deviceId: getDeviceId_() });
 }
 
 function renderSlipGajiResult_(data){
@@ -1189,7 +1176,7 @@ function kirimSlipGajiPDF(){
       msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
       msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
     })
-    .generateAndSaveSlipGajiPDF(withAuthPayload_({ tahun: parseInt(tahun, 10), bulan: bulan }));
+    .generateAndSaveSlipGajiPDF({ tahun: parseInt(tahun, 10), bulan, deviceId: getDeviceId_() });
 }
 
 function showCommunicationMenu_(){
@@ -1752,7 +1739,7 @@ function login(){
       
       return renderLogin(errorMsg);
     }
-    setStoredAuth_(res);
+    setDeviceId_(res?.deviceId);
     boot();
   }).authLogin(nip, pin);
 }
@@ -1763,7 +1750,7 @@ function logout(){
     state.route='login';
     clearStoredAuth_();
     renderLogin('Anda sudah keluar.');
-  }).authLogout(withAuthPayload_());
+  }).authLogout(getAuthPayload_());
 }
 
 /* ===================== PEEK PASSWORD ===================== */
@@ -1977,8 +1964,9 @@ function saveFieldChange() {
     field_label: state.fieldLabel,
     old_value: state.oldValue,
     new_value: state.newValue,
-    consent_checked: consentChecked
-  }));
+    consent_checked: consentChecked,
+    deviceId: getDeviceId_()
+  });
 }
 
 /* ===================== CLOSE MODALS ON OVERLAY CLICK ===================== */
