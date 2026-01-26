@@ -34,6 +34,30 @@ function getAuthPayload_(){
   return { deviceId: getDeviceId_() };
 }
 
+function getStoredAuth_(){
+  const deviceId = sessionStorage.getItem('deviceId') || '';
+  const token = sessionStorage.getItem('token') || '';
+  const nip = sessionStorage.getItem('nip') || '';
+  return { deviceId, token, nip };
+}
+
+function setStoredAuth_(authData){
+  if (authData.deviceId) sessionStorage.setItem('deviceId', authData.deviceId);
+  if (authData.token) sessionStorage.setItem('token', authData.token);
+  if (authData.nip) sessionStorage.setItem('nip', authData.nip);
+}
+
+function clearStoredAuth_(){
+  sessionStorage.removeItem('deviceId');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('nip');
+}
+
+function withAuthPayload_(payload){
+  const auth = getStoredAuth_();
+  return Object.assign({}, payload, auth);
+}
+
 function isAuthed(){ return !!(state.me && state.me.ok); }
 
 function goto(route){
