@@ -20,6 +20,20 @@ let state = {
   route: 'login',
 };
 
+function getDeviceId_(){
+  return sessionStorage.getItem('deviceId') || '';
+}
+
+function setDeviceId_(deviceId){
+  if (deviceId) {
+    sessionStorage.setItem('deviceId', deviceId);
+  }
+}
+
+function getAuthPayload_(){
+  return { deviceId: getDeviceId_() };
+}
+
 function isAuthed(){ return !!(state.me && state.me.ok); }
 
 function goto(route){
@@ -72,9 +86,10 @@ function boot(){
       renderLogin();
       return;
     }
+    setDeviceId_(res?.deviceId);
     state.me=res;
     goto('dash');
-  }).authMe();
+  }).authMe(getAuthPayload_());
 }
 
 /* ===================== LOGIN ===================== */
@@ -286,7 +301,7 @@ function renderDashboard(){
     const elJab = document.getElementById('dashJabatan');
     if (elUnit) elUnit.innerHTML = `Unit: <b>${unit}</b>`;
     if (elJab)  elJab.innerHTML  = `Jabatan: <b>${jabatan}</b>`;
-  }).getProfilUsersDetail();
+  }).getProfilUsersDetail(getAuthPayload_());
 }
 
 
@@ -311,7 +326,7 @@ function renderProfil(){
       const payload = buildProfilPayload_(res.data);
       renderProfilLayout_(payload);
     })
-    .getProfilUsersDetail();
+    .getProfilUsersDetail(getAuthPayload_());
 }
 
 function buildProfilPayload_(raw){
@@ -874,7 +889,7 @@ function loadAvailableSlipGajiBulan_(){
       // Store untuk reference
       window.slipGajiData = { tahunList, bulanPerTahun };
     })
-    .getAvailableSlipGajiBulan();
+    .getAvailableSlipGajiBulan(getAuthPayload_());
 }
 
 function onTahunChange(){
@@ -934,7 +949,7 @@ function tampilkanSlipGaji(){
     .withFailureHandler(err => {
       resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Error</div><div class="muted" style="margin-top:6px;">${escapeHtml(err?.message || String(err))}</div></div>`;
     })
-    .getSlipGaji(Number(tahun), bulan);
+    .getSlipGaji({ tahun: Number(tahun), bulan, deviceId: getDeviceId_() });
 }
 
 function renderSlipGajiResult_(data){
@@ -1151,7 +1166,7 @@ function kirimSlipGajiPDF(){
       msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
       msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
     })
-    .generateAndSaveSlipGajiPDF(parseInt(tahun), bulan);
+    .generateAndSaveSlipGajiPDF({ tahun: parseInt(tahun, 10), bulan, deviceId: getDeviceId_() });
 }
 
 function showCommunicationMenu_(){
@@ -1714,6 +1729,7 @@ function login(){
       
       return renderLogin(errorMsg);
     }
+    setDeviceId_(res?.deviceId);
     boot();
   }).authLogin(nip, pin);
 }
@@ -1723,7 +1739,7 @@ function logout(){
     state.me=null;
     state.route='login';
     renderLogin('Anda sudah keluar.');
-  }).authLogout();
+  }).authLogout(getAuthPayload_());
 }
 
 /* ===================== PEEK PASSWORD ===================== */
@@ -1937,7 +1953,8 @@ function saveFieldChange() {
     field_label: state.fieldLabel,
     old_value: state.oldValue,
     new_value: state.newValue,
-    consent_checked: consentChecked
+    consent_checked: consentChecked,
+    deviceId: getDeviceId_()
   });
 }
 
