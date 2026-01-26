@@ -55,8 +55,12 @@ function parseRoles_(user) {
  * @returns {string[]} Array of roles user
  */
 function getUserRoles(request) {
-  const s = getSession_(request.deviceId);
-  if (!s) return null;
+  let s = null;
+  try {
+    s = requireLogin_(request.nip, request.deviceId, request.token);
+  } catch (e) {
+    return null;
+  }
   
   // roles bisa berupa string atau array
   const roleData = s.roles || s.role;
@@ -173,7 +177,7 @@ function getSubordinates(managerNip) {
  */
 function getApprovalsPending(request) {
   try {
-    const s = requireLogin_(request.deviceId);
+    const s = requireLogin_(request.nip, request.deviceId, request.token);
     
     if (!isManager(request)) {
       return { ok: true, data: [] }; // PTK tidak punya approvals
@@ -230,8 +234,8 @@ function getApprovalsPending(request) {
  */
 function approveCuti(payload) {
   try {
-    const { cutiId, approved, reason = '', deviceId } = payload;
-    const s = requireLogin_(deviceId);
+    const { cutiId, approved, reason = '', deviceId, nip, token } = payload;
+    const s = requireLogin_(nip, deviceId, token);
     requireRole([ROLES.KAPLA, ROLES.ADMIN], payload);
 
     const cutiSheet = getSheet_(CFG.SHEET_CUTI);

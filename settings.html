@@ -328,7 +328,7 @@ function settingsSendOTP_(){
     SETTINGS_STATE.step = 2;
     SETTINGS_STATE.lastOtpSentAt = new Date();
     settingsSetMsg_(res?.msg || 'OTP terkirim. Silakan cek No_HP.', 'success');
-  }).requestPasswordChange(oldPass);
+  }).requestPasswordChange(withAuthPayload_({ oldPassword: oldPass }));
 }
 
 function settingsVerifyOTP_(){
@@ -345,7 +345,7 @@ function settingsVerifyOTP_(){
     }
     SETTINGS_STATE.step = 3;
     settingsSetMsg_('OTP valid. Silakan buat password baru.', 'success');
-  }).verifyPasswordOTP(otp);
+  }).verifyPasswordOTP(withAuthPayload_({ inputOTP: otp }));
 }
 
 function settingsUpdatePassword_(){
@@ -378,7 +378,8 @@ function settingsUpdatePassword_(){
     state.route = 'login';
     nav.classList.add('hidden');
     btnLogout.classList.add('hidden');
+    clearStoredAuth_();
     renderLogin('Password berhasil diubah. Silakan login ulang.');
-  }).updatePassword(p1);
+  }).updatePassword(withAuthPayload_({ newPass: p1 }));
 }
 </script>

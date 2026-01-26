@@ -21,8 +21,8 @@ function getApproverByNIP(nip) {
 
 function submitCuti(payload) {
   try {
-    const { data, deviceId } = payload;
-    const s = requireLogin_(deviceId);
+    const { data, deviceId, nip, token } = payload;
+    const s = requireLogin_(nip, deviceId, token);
     const sh = getSheet_(CFG.SHEET_CUTI);
     const rowData = [
       Utilities.getUuid(),
