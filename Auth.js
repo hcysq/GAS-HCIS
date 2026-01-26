@@ -20,24 +20,25 @@ function authLogin(nip, pin) {
     return { ok:false, msg:'Login gagal' };
   }
 
-  setSession_({
+  const deviceId = setSession_({
     nip,
     nama: user.nama,
     role: user.role,
     email: user.email,
     userId: user.userId
   });
-  return { ok:true };
+  
+  return { ok:true, deviceId: deviceId };
 }
 
-function authMe() {
-  const s = getSession_();
+function authMe(payload) {
+  const s = getSession_(payload.deviceId);
   if (!s) return { ok:false };
   return { ok:true, ...s };
 }
 
-function authLogout() {
-  clearSession_();
+function authLogout(payload) {
+  clearSession_(payload.deviceId);
   return { ok:true };
 }
 

@@ -2,12 +2,28 @@
 <html>
 <head>
   <?!= include('style'); ?>
+  <script>
+    // DEBUG: Store flag untuk A/B testing (akan diset di app.html)
+    window._DEBUG_DISABLE_HEADER_ENHANCEMENTS = false;
+  </script>
 </head>
 <body>
   <div class="app">
-    <header class="topbar">
-      <div class="brand">HCIS Sabilul Qur'an</div>
-      <button id="btnLogout" class="btn ghost hidden" onclick="logout()">Keluar</button>
+    <header class="topbar" id="headerTopbar">
+      <div class="topbar-left" id="topbarLeft">
+        <script>
+          // Conditional render logo hanya jika tidak disable header enhancements
+          if (typeof window._DEBUG_DISABLE_HEADER_ENHANCEMENTS === 'undefined' || !window._DEBUG_DISABLE_HEADER_ENHANCEMENTS) {
+            document.write(`<?!= include('Logo'); ?>`);
+          }
+        </script>
+      </div>
+      <div class="topbar-center">
+        <div class="brand">HCIS Sabilul Qur'an</div>
+      </div>
+      <div class="topbar-right">
+        <button id="btnLogout" class="btn ghost hidden" onclick="logout()">Keluar</button>
+      </div>
     </header>
 
     <main class="content" id="root"></main>
@@ -21,5 +37,14 @@
   </div>
 <?!= include('settings'); ?>
   <?!= include('app'); ?>
+  <script>
+    // Copy debug flag dari app.html ke window global
+    setTimeout(() => {
+      if (typeof DEBUG_DISABLE_HEADER_ENHANCEMENTS !== 'undefined') {
+        window._DEBUG_DISABLE_HEADER_ENHANCEMENTS = DEBUG_DISABLE_HEADER_ENHANCEMENTS;
+        console.log('[HCIS] DEBUG flag synced:', DEBUG_DISABLE_HEADER_ENHANCEMENTS);
+      }
+    }, 10);
+  </script>
 </body>
 </html>

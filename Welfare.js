@@ -4,12 +4,13 @@
 
 /**
  * Ambil daftar Tahun & Bulan yang tersedia untuk user
+ * @param {object} payload - { deviceId }
  * @returns {object} { ok, data: { tahunList, bulanPerTahun }, msg }
  */
-function getAvailableSlipGajiBulan() {
+function getAvailableSlipGajiBulan(payload) {
   try {
     // Pastikan user login
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan dalam session' };
@@ -83,12 +84,12 @@ function getAvailableSlipGajiBulan() {
 
 /**
  * Ambil data Slip Gaji berdasarkan NIP user + Tahun + Bulan
- * @param {number} tahun - Tahun (YYYY)
- * @param {number} bulan - Bulan (1-12) atau nama bulan Indonesia
+ * @param {object} payload - { tahun, bulan, deviceId }
  * @returns {object} { ok, data, msg }
  */
-function getSlipGaji(tahun, bulan) {
+function getSlipGaji(payload) {
   try {
+    let { tahun, bulan, deviceId } = payload;
     // Validasi input
     tahun = Number(tahun);
     if (isNaN(tahun) || tahun < 2000 || tahun > 2099) {
@@ -108,11 +109,14 @@ function getSlipGaji(tahun, bulan) {
     }
 
     // Pastikan user login
-    const s = requireLogin_();
+    const s = requireLogin_(deviceId);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan dalam session' };
     }
+    
+    // ✅ SECURITY: Validate session NIP
+    validateSessionNip_(nipUser, deviceId);
 
     // Buka sheet Slip Gaji
     const { sheet: sh, error: sheetErr } = getSlipGajiSheet_();
@@ -176,8 +180,8 @@ function getSlipGaji(tahun, bulan) {
     }
 
     // Build payload
-    const payload = buildSlipGajiPayload_(selected.row, headers, headerMap);
-    return { ok: true, data: payload };
+    const payloadResult = buildSlipGajiPayload_(selected.row, headers, headerMap);
+    return { ok: true, data: payloadResult };
 
   } catch (e) {
     return { ok: false, msg: `Error getSlipGaji: ${e && e.message ? e.message : e}` };
@@ -407,20 +411,20 @@ function buildPlaceholderReplacements_(data, periode) {
 
 /**
  * Generate dan Kirim Slip Gaji via PDF (dari Google Docs Template)
- * @param {number} tahun - tahun (YYYY)
- * @param {string|number} bulan - bulan (1-12 atau nama)
+ * @param {object} payload - { tahun, bulan, deviceId }
  * @returns {object} {ok, msg}
  */
-function generateAndSaveSlipGajiPDF(tahun, bulan) {
+function generateAndSaveSlipGajiPDF(payload) {
   try {
-    const s = requireLogin_();
+    const { tahun, bulan, deviceId } = payload;
+    const s = requireLogin_(deviceId);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan' };
     }
 
     // Ambil data slip
-    const slipRes = getSlipGaji(tahun, bulan);
+    const slipRes = getSlipGaji({ tahun, bulan, deviceId });
     if (!slipRes.ok) {
       return { ok: false, msg: slipRes.msg || 'Gagal mengambil data slip' };
     }
@@ -609,19 +613,21 @@ function sendSlipGajiNotifications_(nip, nama, periode, pdfLink, pdfFile) {
       const bulanText = periodeParts[0] || 'Januari';
       const tahunText = periodeParts[1] || '2026';
 
-      const subject = `Slip Gaji [${bulanText} ${tahunText}] [${nip}]`;
+      const subject = `Slip Gaji ${bulanText} ${tahunText} ${nip}`;
       
       const body = `Slip Gaji ${bulanText} ${tahunText}\n\n` +
         `Bismillahirrahmanirrahim.\n\n` +
         `Yth. ${nama},\n\n` +
-        `Sistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: 🗓️ ${bulanText} ${tahunText}\n\n` +
-        `Silakan akses atau unduh dokumen melalui tautan berikut: 🔗 ${pdfLink}\n\n` +
+        `Sistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: ${bulanText} ${tahunText}. Silakan akses atau unduh dokumen melalui tautan berikut:\n` +
+        `${pdfLink}\n\n` +
         `Catatan Penting:\n` +
         `1. Dokumen ini bersifat RAHASIA & PRIBADI.\n` +
         `2. Mohon tidak membagikan tautan ini kepada pihak lain.\n` +
-        `3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n` +
-        `Terima kasih.\n\n` +
-        `======== 🤖 Pesan ini dibuat otomatis oleh Sistem HCIS Sabilul Qur'an`;
+        `3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n\n` +
+        `Terima kasih.\n` +
+        `Human Capital Management Sabilul Qur'an\n\n` +
+        `========\n` +
+        `Pesan ini dibuat otomatis oleh Sistem HCIS Sabilul Qur'an`;
 
       try {
         GmailApp.sendEmail(
@@ -643,7 +649,7 @@ function sendSlipGajiNotifications_(nip, nama, periode, pdfLink, pdfFile) {
       const bulanText = periodeParts[0] || 'Januari';
       const tahunText = periodeParts[1] || '2026';
       
-      const waMessage = `Slip Gaji ${bulanText} ${tahunText}\n\nBismillahirrahmanirrahim.\n\nYth. ${nama},\n\nSistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: 🗓️ ${bulanText} ${tahunText}\n\nSilakan akses atau unduh dokumen melalui tautan berikut: 🔗 ${pdfLink}\n\nCatatan Penting:\n1. Dokumen ini bersifat RAHASIA & PRIBADI.\n2. Mohon tidak membagikan tautan ini kepada pihak lain.\n3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n\nTerima kasih.`;
+      const waMessage = `Slip Gaji ${bulanText} ${tahunText}\n\nBismillahirrahmanirrahim.\n\nYth. ${nama},\n\nSistem telah berhasil memproses permintaan cetak Slip Gaji Anda untuk periode: 🗓️ ${bulanText} ${tahunText}.\n\nSilakan akses atau unduh dokumen melalui tautan berikut:\n🔗 ${pdfLink}\n\nCatatan Penting:\n1. Dokumen ini bersifat RAHASIA & PRIBADI.\n2. Mohon tidak membagikan tautan ini kepada pihak lain.\n3. Segala risiko finansial atau hukum yang timbul akibat penggunaan dokumen ini menjadi tanggung jawab pribadi pegawai sepenuhnya.\n\nTerima kasih.\nHuman Capital Management Sabilul Qur'an\n\n🤖 Pesan ini dibuat otomatis oleh Sistem HCIS Sabilul Qur'an`;
       try {
         sendWAViaStarsender_(wa, waMessage);
         Logger.log('SUCCESS: WA sent to ' + wa);

@@ -2,9 +2,9 @@
  * Dashboard
  *************************************************/
 
-function getSaldoCutiSaya() {
+function getSaldoCutiSaya(payload) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nip = s.nip;
 
     const t = readTable_(CFG.SHEET_SALDO);

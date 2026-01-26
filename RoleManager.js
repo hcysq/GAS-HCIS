@@ -55,7 +55,7 @@ function parseRoles_(user) {
  * @returns {string[]} Array of roles user
  */
 function getUserRoles(request) {
-  const s = getSession_(request);
+  const s = getSession_(request.deviceId);
   if (!s) return null;
   
   // roles bisa berupa string atau array
@@ -173,7 +173,7 @@ function getSubordinates(managerNip) {
  */
 function getApprovalsPending(request) {
   try {
-    const s = requireLogin_(request);
+    const s = requireLogin_(request.deviceId);
     
     if (!isManager(request)) {
       return { ok: true, data: [] }; // PTK tidak punya approvals
@@ -228,10 +228,11 @@ function getApprovalsPending(request) {
  * API: Approve/Reject cuti request
  * Only KAPLA/ADMIN can do this for requests directed to them
  */
-function approveCuti(request, cutiId, approved, reason = '') {
+function approveCuti(payload) {
   try {
-    const s = requireLogin_(request);
-    requireRole([ROLES.KAPLA, ROLES.ADMIN], request);
+    const { cutiId, approved, reason = '', deviceId } = payload;
+    const s = requireLogin_(deviceId);
+    requireRole([ROLES.KAPLA, ROLES.ADMIN], payload);
 
     const cutiSheet = getSheet_(CFG.SHEET_CUTI);
     const headers = cutiSheet.getRange(1, 1, 1, cutiSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());

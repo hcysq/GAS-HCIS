@@ -1,7 +1,19 @@
 <script>
+// ========= DEBUG: A/B TEST HEADER ENHANCEMENTS =========
+// Set ke TRUE untuk disable header/logo/sticky (test apakah berasal dari sini)
+// Set ke FALSE untuk pakai header enhancements normal
+const DEBUG_DISABLE_HEADER_ENHANCEMENTS = false;
+
+console.log("[HCIS] DEBUG: header enhancements enabled?", !DEBUG_DISABLE_HEADER_ENHANCEMENTS);
+
 const root = document.getElementById('root');
 const nav = document.getElementById('nav');
 const btnLogout = document.getElementById('btnLogout');
+
+// Guard: jika elemen tidak ditemukan, initialize dengan empty
+if (!root) console.error('[HCIS] root element not found');
+if (!nav) console.error('[HCIS] nav element not found');
+if (!btnLogout) console.error('[HCIS] btnLogout element not found');
 
 let state = {
   me: null,
@@ -17,16 +29,46 @@ function goto(route){
     return;
   }
   state.route = route || 'dash';
+  console.log('[HCIS] goto:', state.route);
+  
+  if (!root) {
+    console.error('[HCIS] goto: root element not found');
+    return;
+  }
+  if (!nav) {
+    console.warn('[HCIS] goto: nav element not found (okay if on login)');
+  }
+  
   renderAppShell();
   setActiveTab(state.route);
   renderRoute(state.route);
+  console.log('[HCIS] goto completed:', state.route);
 }
 
 function boot(){
+  console.log('[HCIS] boot started');
+  console.log('[HCIS] DEBUG_DISABLE_HEADER_ENHANCEMENTS:', DEBUG_DISABLE_HEADER_ENHANCEMENTS);
+  
+  if (!root) {
+    console.error('[HCIS] boot: root element missing from DOM');
+    return;
+  }
+  
+  // Apply header static class jika debug mode enabled
+  if (DEBUG_DISABLE_HEADER_ENHANCEMENTS) {
+    const headerElem = document.getElementById('headerTopbar');
+    if (headerElem) {
+      headerElem.classList.add('header-static');
+      console.log('[HCIS] header static class applied');
+    }
+  }
+  
   google.script.run.withSuccessHandler(res=>{
+    console.log('[HCIS] authMe response:', res?.ok ? 'OK' : 'FAIL');
     if(!res || !res.ok){
       state.me=null;
       state.route='login';
+      console.log('[HCIS] render login');
       renderLogin();
       return;
     }
@@ -37,48 +79,60 @@ function boot(){
 
 /* ===================== LOGIN ===================== */
 function renderLogin(msg=''){
-  nav.classList.add('hidden');
-  btnLogout.classList.add('hidden');
+  if (nav) nav.classList.add('hidden');
+  if (btnLogout) btnLogout.classList.add('hidden');
+
+  if (!root) {
+    console.error('[HCIS] Cannot render login: root element not found');
+    return;
+  }
+
+  let msgHtml = '';
+  if (msg) {
+    msgHtml = '<div class="muted" style="color:#ffb4b4;margin-bottom:10px;">' + escapeHtml(msg) + '</div>';
+  }
 
   root.innerHTML=`
     <div class="card">
       <div style="font-size:18px;font-weight:900;margin-bottom:6px;">Masuk HCIS</div>
       <div class="muted" style="margin-bottom:12px;">Login menggunakan <b>NIP</b> dan <b>Password</b>.</div>
 
-      ${msg ? `<div class="muted" style="color:#ffb4b4;margin-bottom:10px;">${escapeHtml(msg)}</div>` : ''}
+      ${msgHtml}
 
-      <div style="margin-bottom:10px;">
-        <input id="nip" placeholder="NIP" autocomplete="username">
-      </div>
-
-      <div style="margin-bottom:12px;">
-        <div class="input-wrap">
-          <input id="pin" type="password" placeholder="Password" autocomplete="current-password">
-          <button type="button" class="peek-btn" onclick="togglePassword('pin', this)" aria-label="Tampilkan password">
-            👁️
-          </button>
+      <form onsubmit="event.preventDefault(); login();" id="loginForm">
+        <div style="margin-bottom:10px;">
+          <input id="nip" placeholder="NIP" autocomplete="username" type="text" required>
         </div>
-      </div>
 
-      <button class="btn primary" onclick="login()">Masuk</button>
-      <div class="muted" style="margin-top:12px;">Jika lupa password, hubungi Admin HC.</div>
+        <div style="margin-bottom:12px;">
+          <div class="input-wrap">
+            <input id="pin" type="password" placeholder="Password" autocomplete="current-password" required>
+            <button type="button" class="peek-btn" onclick="togglePassword('pin', this)" aria-label="Tampilkan password">
+              👁️
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn primary">Masuk</button>
+      </form>
+
+      <div class="muted" style="margin-top:12px;">
+        <a href="javascript:void(0)" onclick="redirectToWhatsApp()" style="color:rgba(14,165,233,.92); text-decoration:none; font-weight:600;">Lupa Password?</a>
+      </div>
     </div>
   `;
+}
 
-  // Optional: enter to submit
-  setTimeout(()=>{
-    const pin = document.getElementById('pin');
-    if(pin){
-      pin.addEventListener('keydown', (e)=>{
-        if(e.key === 'Enter') login();
-      });
-    }
-  }, 0);
+function redirectToWhatsApp(){
+  const phone = '+628517520627';
+  const message = encodeURIComponent("Assalamu'alaikum Admin HCM, saya lupa password HCIS. Mohon bantuan reset akun saya.");
+  const waUrl = `https://wa.me/${phone}?text=${message}`;
+  window.open(waUrl, '_blank');
 }
 
 function renderAppShell(){
-  nav.classList.remove('hidden');
-  btnLogout.classList.remove('hidden');
+  if (nav) nav.classList.remove('hidden');
+  if (btnLogout) btnLogout.classList.remove('hidden');
 }
 
 /* ===================== ROUTES ===================== */
@@ -93,41 +147,70 @@ function renderRoute(route){
   }
 
   // placeholders modul
-  if(route==='projects') return renderPlaceholder_('Progres Proyek');
-  if(route==='absensi') return renderPlaceholder_('Absensi');
+  if(route==='projects') return renderProjects_();
+  if(route==='absensi') return renderAbsensi_();
   if(route==='welfare') return renderWelfare();
-  if(route==='development') return renderPlaceholder_('Pengembangan');
+  if(route==='development') return renderDevelopment_();
+  if(route==='performa') return renderPerforma_();
+  if(route==='manajemen-unit') return renderManajemenUnit_();
+  if(route==='dokumen') return renderDokumenAdministrasi_();
+  if(route==='layanan') return showServiceMenu_();
+  if(route==='tutorial-slip-gaji') return renderTutorialSlipGaji_();
+  if(route==='tutorial-password') return renderTutorialGantiPassword_();
+  if(route==='tutorial-profil') return renderTutorialEditProfil_();
 
   return renderDashboard();
 }
 
 /* ===================== DASHBOARD ===================== */
 function renderDashboard(){
+  console.log('[HCIS] renderDashboard: start');
   const me = state.me;
 
   root.innerHTML=`
     <div class="card">
-      <div style="font-weight:900;font-size:18px;">Assalamu'alaikum, ${escapeHtml(me.nama||me.nip)}</div>
-      <div class="muted" style="margin-top:4px;">
-        NIP: <b>${escapeHtml(me.nip)}</b> • Role: <b>${escapeHtml(me.role)}</b>
-      </div>
-      <div class="muted" style="margin-top:6px;">
-        <span id="dashUnit">Unit: …</span> • <span id="dashJabatan">Jabatan: …</span>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div style="font-weight:900;font-size:18px;">Assalamu'alaikum, ${escapeHtml(me.nama||me.nip)}</div>
+          <div class="muted" style="margin-top:4px;">
+            NIP: <b>${escapeHtml(me.nip)}</b> • Role: <b>${escapeHtml(me.role)}</b>
+          </div>
+          <div class="muted" style="margin-top:6px;">
+            <span id="dashUnit">Unit: …</span> • <span id="dashJabatan">Jabatan: …</span>
+          </div>
+        </div>
+        <div style="background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.25); border-radius:8px; padding:6px 10px; font-size:10px; color:rgba(34,197,94,.96); font-weight:700; white-space:nowrap;">EARLY ACCESS v0.1</div>
       </div>
     </div>
 
     <div class="card">
       <div style="font-weight:900;margin-bottom:10px;">Fitur HCIS</div>
 
-      <div class="tileGrid">
+      <!-- PERFORMA - FULL WIDTH TOP -->
+      <div class="tileGrid" style="grid-template-columns: 1fr;">
+        <div class="tile" onclick="goto('performa')" style="min-height:100px;">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <div class="tileIcon" style="flex:0 0 48px; width:48px; height:48px;">📊</div>
+            <div style="flex:1;">
+              <div class="tileTitle">Performa Pegawai</div>
+              <div class="tileDesc">Penilaian kinerja, kedisiplinan, dan catatan personal.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STANDARD MENU GRID (2 COLUMNS) -->
+      <div class="tileGrid" style="margin-top:12px;">
+        <!-- Tugas & Program -->
         <div class="tile" onclick="goto('projects')">
-          <div class="tileIcon">📌</div>
+          <div class="tileIcon">✓</div>
           <div>
-            <div class="tileTitle">Progres Proyek</div>
-            <div class="tileDesc">Program, milestone, task, laporan pekanan.</div>
+            <div class="tileTitle">Tugas & Program</div>
+            <div class="tileDesc">Tugas, kegiatan unit, dan program kerja.</div>
           </div>
         </div>
 
+        <!-- Absensi -->
         <div class="tile" onclick="goto('absensi')">
           <div class="tileIcon">🗓️</div>
           <div>
@@ -136,6 +219,7 @@ function renderDashboard(){
           </div>
         </div>
 
+        <!-- Kesejahteraan -->
         <div class="tile" onclick="goto('welfare')">
           <div class="tileIcon">💳</div>
           <div>
@@ -144,6 +228,7 @@ function renderDashboard(){
           </div>
         </div>
 
+        <!-- Pengembangan -->
         <div class="tile" onclick="goto('development')">
           <div class="tileIcon">🎓</div>
           <div>
@@ -151,10 +236,42 @@ function renderDashboard(){
             <div class="tileDesc">Onboarding, kinerja, LMS, psikotes.</div>
           </div>
         </div>
-      </div>
 
-      <div class="muted" style="margin-top:12px;">
-        Catatan: detail tiap fitur akan kita isi bertahap setelah CORE stabil.
+        <!-- Komunikasi & Pengumuman -->
+        <div class="tile" onclick="showCommunicationMenu_()">
+          <div class="tileIcon">💬</div>
+          <div>
+            <div class="tileTitle">Komunikasi & Pengumuman</div>
+            <div class="tileDesc">Pengumuman resmi dan pesan internal.</div>
+          </div>
+        </div>
+
+        <!-- Manajemen Unit -->
+        <div class="tile" onclick="goto('manajemen-unit')">
+          <div class="tileIcon">🏢</div>
+          <div>
+            <div class="tileTitle">Manajemen Unit</div>
+            <div class="tileDesc">Persetujuan dan pengelolaan unit kerja.</div>
+          </div>
+        </div>
+
+        <!-- Dokumen & Administrasi -->
+        <div class="tile" onclick="goto('dokumen')">
+          <div class="tileIcon">📂</div>
+          <div style="position:relative;">
+            <div class="tileTitle">Dokumen & Administrasi</div>
+            <div class="tileDesc">Akses dokumen resmi dan administrasi kepegawaian.</div>
+          </div>
+        </div>
+
+        <!-- Layanan Pegawai -->
+        <div class="tile" onclick="goto('layanan')">
+          <div class="tileIcon">🛠️</div>
+          <div>
+            <div class="tileTitle">Layanan Pegawai</div>
+            <div class="tileDesc">Layanan bantuan dan informasi untuk pegawai.</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -454,6 +571,161 @@ function renderProfilLayout_(d){
   };
 }
 
+/* ===================== PERFORMA (READ-ONLY, DUMMY DATA) ===================== */
+window.performaState = { activeTab: 'penilaian' };
+
+function performaSwitchTab_(tabName){
+  window.performaState.activeTab = tabName;
+  renderPerforma_();
+}
+
+function renderPerforma_(){
+  const activeTab = window.performaState.activeTab || 'penilaian';
+
+  const tabButtonStyle = (isActive) => {
+    if(isActive){
+      return 'background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.10)); border-color: rgba(255,255,255,.34); box-shadow: 0 10px 28px rgba(0,0,0,.18);';
+    } else {
+      return 'background:rgba(255,255,255,.08);';
+    }
+  };
+
+  const tabContent = () => {
+    if(activeTab === 'penilaian'){
+      return `
+        <div class="card">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div style="border-radius:10px; padding:12px; background:rgba(14,165,233,.15); border:1px solid rgba(14,165,233,.25);">
+              <div style="font-size:12px; color:rgba(14,165,233,.90); margin-bottom:6px;">Periode</div>
+              <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">Januari 2026</div>
+            </div>
+            <div style="border-radius:10px; padding:12px; background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.25);">
+              <div style="font-size:12px; color:rgba(34,197,94,.90); margin-bottom:6px;">Kategori</div>
+              <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">Baik</div>
+            </div>
+          </div>
+          
+          <div style="border-radius:10px; padding:12px; background:rgba(255,193,7,.15); border:1px solid rgba(255,193,7,.25); margin-bottom:12px;">
+            <div style="font-size:12px; color:rgba(255,193,7,.90); margin-bottom:6px;">Nilai Akhir</div>
+            <div style="font-weight:900; font-size:18px; color:rgba(255,255,255,.96);">85 / 100</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,.06); border-radius:10px; padding:12px; border:1px solid rgba(255,255,255,.12);">
+            <div style="font-size:12px; color:rgba(255,255,255,.70); margin-bottom:6px;">Catatan</div>
+            <div style="color:rgba(255,255,255,.92); font-size:13px; line-height:1.5;">Contoh catatan penilaian kinerja. Data akan tersedia setelah modul aktif.</div>
+          </div>
+        </div>
+      `;
+    } else if(activeTab === 'kedisiplinan'){
+      return `
+        <div class="card">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div style="border-radius:10px; padding:12px; background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.25);">
+              <div style="font-size:12px; color:rgba(34,197,94,.90); margin-bottom:4px;">Hadir</div>
+              <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">20 hari</div>
+            </div>
+            <div style="border-radius:10px; padding:12px; background:rgba(255,193,7,.15); border:1px solid rgba(255,193,7,.25);">
+              <div style="font-size:12px; color:rgba(255,193,7,.90); margin-bottom:4px;">Telat</div>
+              <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">1</div>
+            </div>
+            <div style="border-radius:10px; padding:12px; background:rgba(100,200,255,.15); border:1px solid rgba(100,200,255,.25);">
+              <div style="font-size:12px; color:rgba(100,200,255,.90); margin-bottom:4px;">Izin</div>
+              <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">0</div>
+            </div>
+            <div style="border-radius:10px; padding:12px; background:rgba(244,67,54,.15); border:1px solid rgba(244,67,54,.25);">
+              <div style="font-size:12px; color:rgba(244,67,54,.90); margin-bottom:4px;">Alpha</div>
+              <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">0</div>
+            </div>
+          </div>
+
+          <div style="border-radius:10px; padding:12px; background:rgba(168,85,247,.15); border:1px solid rgba(168,85,247,.25);">
+            <div style="font-size:12px; color:rgba(168,85,247,.90); margin-bottom:4px;">Lembur</div>
+            <div style="font-weight:900; font-size:16px; color:rgba(255,255,255,.96);">3 jam</div>
+          </div>
+        </div>
+      `;
+    } else if(activeTab === 'pelanggaran'){
+      return `
+        <div class="card">
+          <div style="text-align:center; padding:24px; color:rgba(255,255,255,.70); font-size:14px;">
+            ✓ Tidak ada catatan pelanggaran.
+          </div>
+        </div>
+      `;
+    } else if(activeTab === 'apresiasi'){
+      return `
+        <div class="card">
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="border-radius:10px; padding:12px; background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.25); cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.background='rgba(34,197,94,.15)'" onmouseout="this.style.background='rgba(34,197,94,.10)'">
+              <div style="font-weight:600; color:rgba(34,197,94,.96);">⭐ Apresiasi Kinerja</div>
+              <div style="font-size:12px; color:rgba(255,255,255,.70); margin-top:4px;">Data akan tersedia setelah modul aktif.</div>
+            </div>
+            <div style="border-radius:10px; padding:12px; background:rgba(168,85,247,.10); border:1px solid rgba(168,85,247,.25); cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.background='rgba(168,85,247,.15)'" onmouseout="this.style.background='rgba(168,85,247,.10)'">
+              <div style="font-weight:600; color:rgba(168,85,247,.96);">🎯 Kontribusi Kegiatan</div>
+              <div style="font-size:12px; color:rgba(255,255,255,.70); margin-top:4px;">Data akan tersedia setelah modul aktif.</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    return '';
+  };
+
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900; font-size:18px; margin-bottom:6px;">Performa Pegawai</div>
+      <div class="muted" style="margin-bottom:12px;">Ringkasan kinerja dan kedisiplinan Anda.</div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="card">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div style="border-radius:10px; padding:12px; background:rgba(14,165,233,.15); border:1px solid rgba(14,165,233,.25);">
+          <div style="font-size:12px; color:rgba(14,165,233,.90); margin-bottom:4px;">Kinerja Terakhir</div>
+          <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">Baik</div>
+        </div>
+        <div style="border-radius:10px; padding:12px; background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.25);">
+          <div style="font-size:12px; color:rgba(34,197,94,.90); margin-bottom:4px;">Kedisiplinan</div>
+          <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">Baik</div>
+        </div>
+        <div style="border-radius:10px; padding:12px; background:rgba(244,67,54,.15); border:1px solid rgba(244,67,54,.25);">
+          <div style="font-size:12px; color:rgba(244,67,54,.90); margin-bottom:4px;">Pelanggaran Aktif</div>
+          <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">0</div>
+        </div>
+        <div style="border-radius:10px; padding:12px; background:rgba(255,193,7,.15); border:1px solid rgba(255,193,7,.25);">
+          <div style="font-size:12px; color:rgba(255,193,7,.90); margin-bottom:4px;">Apresiasi</div>
+          <div style="font-weight:900; font-size:14px; color:rgba(255,255,255,.96);">0</div>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:12px; text-align:center;">Data akan tersedia setelah modul aktif.</div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div style="display:flex; gap:8px; margin-bottom:12px; padding:8px; background:transparent;">
+      <div onclick="performaSwitchTab_('penilaian')" style="flex:1; border:1px solid rgba(255,255,255,.18); padding:12px; border-radius:14px; font-weight:900; color:rgba(255,255,255,.92); cursor:pointer; text-align:center; transition:all 0.2s ease; ${tabButtonStyle(activeTab === 'penilaian')}">
+        Penilaian
+      </div>
+      <div onclick="performaSwitchTab_('kedisiplinan')" style="flex:1; border:1px solid rgba(255,255,255,.18); padding:12px; border-radius:14px; font-weight:900; color:rgba(255,255,255,.92); cursor:pointer; text-align:center; transition:all 0.2s ease; ${tabButtonStyle(activeTab === 'kedisiplinan')}">
+        Kedisiplinan
+      </div>
+      <div onclick="performaSwitchTab_('pelanggaran')" style="flex:1; border:1px solid rgba(255,255,255,.18); padding:12px; border-radius:14px; font-weight:900; color:rgba(255,255,255,.92); cursor:pointer; text-align:center; transition:all 0.2s ease; ${tabButtonStyle(activeTab === 'pelanggaran')}">
+        Pelanggaran
+      </div>
+      <div onclick="performaSwitchTab_('apresiasi')" style="flex:1; border:1px solid rgba(255,255,255,.18); padding:12px; border-radius:14px; font-weight:900; color:rgba(255,255,255,.92); cursor:pointer; text-align:center; transition:all 0.2s ease; ${tabButtonStyle(activeTab === 'apresiasi')}">
+        Apresiasi
+      </div>
+    </div>
+
+    <!-- Tab Content -->
+    ${tabContent()}
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
 /* ===================== PLACEHOLDER ===================== */
 function renderPlaceholder_(title){
   root.innerHTML = `
@@ -543,13 +815,13 @@ function renderSlipGaji_(){
       <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:0;">
         <div>
           <label style="display:block; font-size:12px; color:rgba(255,255,255,.70); margin-bottom:6px;">Tahun</label>
-          <select id="slipTahun" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(14,165,233,.18); color:rgba(255,255,255,.96); font-weight:600;" onchange="onTahunChange()">
+          <select id="slipTahun" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(20,30,40,.85); color:#ffffff; font-weight:600;" onchange="onTahunChange()">
             <option value="">-- Memuat --</option>
           </select>
         </div>
         <div>
           <label style="display:block; font-size:12px; color:rgba(255,255,255,.70); margin-bottom:6px;">Bulan</label>
-          <select id="slipBulan" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(14,165,233,.18); color:rgba(255,255,255,.96); font-weight:600;" onchange="updateTampilkanButton()">
+          <select id="slipBulan" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(14,165,233,.30); background:rgba(20,30,40,.85); color:#ffffff; font-weight:600;" onchange="updateTampilkanButton()">
             <option value="">-- Pilih --</option>
           </select>
         </div>
@@ -882,18 +1154,545 @@ function kirimSlipGajiPDF(){
     .generateAndSaveSlipGajiPDF(parseInt(tahun), bulan);
 }
 
+function showCommunicationMenu_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Komunikasi & Pengumuman</div>
+      <div class="muted" style="margin-bottom:12px;">Pengumuman resmi dan pesan internal.</div>
+    </div>
+
+    <!-- Sub-menu Komunikasi -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(14,165,233,.15);" onmouseover="this.style.background='rgba(14,165,233,.25)'" onmouseout="this.style.background='rgba(14,165,233,.15)';" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">📢 Pengumuman</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Lihat pengumuman resmi dari organisasi</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; cursor:pointer; position:relative;" onmouseover="this.style.background='rgba(100,150,200,.10)'" onmouseout="this.style.background='transparent'" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">📥 Kotak Surat</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Lihat pesan masuk dan internal</div>
+        </div>
+        <div style="position:absolute; top:12px; right:16px; width:10px; height:10px; background:#ff4444; border-radius:50%; display:inline-block;"></div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+    </div>
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+function showServiceMenu_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Layanan Pegawai</div>
+      <div class="muted" style="margin-bottom:12px;">Layanan bantuan dan informasi untuk pegawai.</div>
+    </div>
+
+    <!-- Sub-menu Layanan -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(14,165,233,.15);" onmouseover="this.style.background='rgba(14,165,233,.25)'" onmouseout="this.style.background='rgba(14,165,233,.15)';" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">❓ FAQ Kepegawaian</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Tanya jawab umum tentang kepegawaian</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(100,150,200,.10);" onmouseover="this.style.background='rgba(100,150,200,.20)'" onmouseout="this.style.background='rgba(100,150,200,.10)';" onclick="showTutorialMenu_()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">📘 Tutorial</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Panduan penggunaan fitur HCIS</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; opacity:0.6;" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">📩 Kontak HCM</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Hubungi Human Capital Management</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; cursor:pointer; opacity:0.6;" onclick="showComingSoon()">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">🛠️ Pengajuan</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Ajukan perubahan data, surat keterangan, konsultasi</div>
+        </div>
+        <div style="background:rgba(255,165,0,.25); color:rgba(255,165,0,.96); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700;">Coming Soon</div>
+      </div>
+    </div>
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+function showTutorialMenu_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">📘 Tutorial</div>
+      <div class="muted" style="margin-bottom:12px;">Panduan penggunaan fitur HCIS yang sudah berjalan.</div>
+    </div>
+
+    <!-- Sub-menu Tutorial -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(34,197,94,.10);" onmouseover="this.style.background='rgba(34,197,94,.18)'" onmouseout="this.style.background='rgba(34,197,94,.10)';" onclick="goto('tutorial-slip-gaji')">
+        <div style="flex:0 0 40px; font-size:20px;">📋</div>
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Slip Gaji</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Cara mengakses dan mengirim slip gaji</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(244,67,54,.10);" onmouseover="this.style.background='rgba(244,67,54,.18)'" onmouseout="this.style.background='rgba(244,67,54,.10)';" onclick="goto('tutorial-password')">
+        <div style="flex:0 0 40px; font-size:20px;">🔐</div>
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Ganti Password</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Cara mengubah password login Anda</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+
+      <div style="display:flex; align-items:center; padding:14px; cursor:pointer; background:rgba(168,85,247,.10);" onmouseover="this.style.background='rgba(168,85,247,.18)'" onmouseout="this.style.background='rgba(168,85,247,.10)';" onclick="goto('tutorial-profil')">
+        <div style="flex:0 0 40px; font-size:20px;">✏️</div>
+        <div style="flex:1;">
+          <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">Edit Data Profil</div>
+          <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">Cara mengubah data profil Anda</div>
+        </div>
+        <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+      </div>
+    </div>
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('layanan')">‹ Kembali ke Layanan Pegawai</button>
+    </div>
+  `;
+}
+
 function showComingSoon(){
   alert('Coming Soon: fitur sedang disiapkan.');
 }
 
+/* ===================== MANAJEMEN UNIT ===================== */
+function renderManajemenUnit_(){
+  const me = state.me;
+  const isAuthorized = me && (me.role === 'Kepala Unit' || me.role === 'Admin HCM');
+  
+  const subMenuItems = [
+    { icon: '✅', title: 'Persetujuan Cuti', desc: 'Kelola dan setujui permohonan cuti pegawai unit.' },
+    { icon: '📋', title: 'Persetujuan Izin', desc: 'Kelola dan setujui permohonan izin pegawai unit.' },
+    { icon: '👥', title: 'Rekap Pegawai Unit', desc: 'Lihat daftar lengkap pegawai dan data manajemen.' },
+    { icon: '📝', title: 'Catatan Unit', desc: 'Buat dan lihat catatan penting unit kerja.' }
+  ];
+
+  const renderSubMenu = () => {
+    if (isAuthorized) {
+      // Full access - render interactive menu
+      return subMenuItems.map(item => `
+        <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(14,165,233,.10);" onmouseover="this.style.background='rgba(14,165,233,.18)'" onmouseout="this.style.background='rgba(14,165,233,.10)';" onclick="showComingSoon()">
+          <div style="flex:0 0 40px; font-size:18px;">${item.icon}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">${escapeHtml(item.title)}</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">${escapeHtml(item.desc)}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+        </div>
+      `).join('');
+    } else {
+      // Locked state - render with overlay
+      return `
+        <div style="position:relative; border-radius:14px; overflow:hidden;">
+          <div style="display:flex; flex-direction:column; gap:0;">
+            ${subMenuItems.map(item => `
+              <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.08); opacity:0.5; position:relative;">
+                <div style="flex:0 0 40px; font-size:18px;">${item.icon}</div>
+                <div style="flex:1;">
+                  <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">${escapeHtml(item.title)}</div>
+                  <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">${escapeHtml(item.desc)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="position:absolute; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
+            <div style="text-align:center; color:rgba(255,255,255,.95);">
+              <div style="font-size:32px; margin-bottom:8px;">🔒</div>
+              <div style="font-weight:700; font-size:13px; margin-bottom:4px;">Fitur Terkunci</div>
+              <div style="font-size:11px; color:rgba(255,255,255,.75); max-width:200px;">Fitur ini tersedia untuk Kepala Unit / Admin</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  };
+
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">Manajemen Unit</div>
+      <div class="muted" style="margin-bottom:12px;">Fitur pengelolaan dan persetujuan unit kerja.</div>
+      ${!isAuthorized ? `<div style="background:rgba(168,85,247,.15); border:1px solid rgba(168,85,247,.25); border-radius:10px; padding:10px 12px; font-size:12px; color:rgba(168,85,247,.95); margin-bottom:12px;">
+        ℹ️ Anda memiliki akses terbatas untuk halaman ini. Untuk akses penuh, hubungi Kepala Unit Anda.
+      </div>` : ''}
+    </div>
+
+    <!-- Sub-menu Manajemen Unit -->
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      ${renderSubMenu()}
+    </div>
+
+    <!-- Kembali -->
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+/* ===================== HELPER: RENDER SUBMENU ===================== */
+function renderSubmenuSection_(title, description, items, isLocked = false) {
+  const renderItems = () => {
+    if (isLocked) {
+      return `
+        <div style="position:relative; border-radius:14px; overflow:hidden;">
+          <div style="display:flex; flex-direction:column; gap:0;">
+            ${items.map(item => `
+              <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.08); opacity:0.5;">
+                <div style="flex:0 0 40px; font-size:18px;">${item.icon}</div>
+                <div style="flex:1;">
+                  <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">${escapeHtml(item.title)}</div>
+                  <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">${escapeHtml(item.desc)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="position:absolute; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
+            <div style="text-align:center; color:rgba(255,255,255,.95);">
+              <div style="font-size:32px; margin-bottom:8px;">🔒</div>
+              <div style="font-weight:700; font-size:13px; margin-bottom:4px;">Fitur Terkunci</div>
+              <div style="font-size:11px; color:rgba(255,255,255,.75); max-width:200px;">Fitur ini tersedia untuk Kepala Unit / Admin</div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      return items.map(item => `
+        <div style="display:flex; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.10); cursor:pointer; background:rgba(14,165,233,.10);" onmouseover="this.style.background='rgba(14,165,233,.18)'" onmouseout="this.style.background='rgba(14,165,233,.10)';" onclick="showComingSoon()">
+          <div style="flex:0 0 40px; font-size:18px;">${item.icon}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700; color:rgba(255,255,255,.96); font-size:14px;">${escapeHtml(item.title)}</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.68); margin-top:4px;">${escapeHtml(item.desc)}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.50); font-size:18px;">›</div>
+        </div>
+      `).join('');
+    }
+  };
+
+  return `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">${escapeHtml(title)}</div>
+      <div class="muted" style="margin-bottom:12px;">${escapeHtml(description)}</div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden; border-radius:16px;">
+      ${renderItems()}
+    </div>
+  `;
+}
+
+/* ===================== TUGAS & PROGRAM ===================== */
+function renderProjects_(){
+  const items = [
+    { icon: '✓', title: 'Daftar Tugas', desc: 'Lihat dan kelola tugas-tugas Anda.' },
+    { icon: '📅', title: 'Program Unit', desc: 'Program kerja dan kegiatan unit.' },
+    { icon: '📈', title: 'Progress Kegiatan', desc: 'Pantau progress realisasi program.' },
+    { icon: '📊', title: 'Laporan Singkat', desc: 'Buat laporan kegiatan per periode.' }
+  ];
+
+  root.innerHTML = renderSubmenuSection_('Tugas & Program', 'Kelola tugas, program, dan progress kegiatan unit.', items) + `
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+/* ===================== ABSENSI ===================== */
+function renderAbsensi_(){
+  const items = [
+    { icon: '✓', title: 'Check-in / Check-out', desc: 'Catat kehadiran Anda (Coming Soon).' },
+    { icon: '📋', title: 'Riwayat Absensi', desc: 'Lihat riwayat kehadiran detail.' },
+    { icon: '🏥', title: 'Izin / Sakit', desc: 'Lihat status izin dan sakit Anda.' },
+    { icon: '📊', title: 'Rekap Bulanan', desc: 'Rekap kehadiran per bulan.' }
+  ];
+
+  root.innerHTML = renderSubmenuSection_('Absensi', 'Kelola kehadiran, izin, dan sakit Anda.', items) + `
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+/* ===================== PENGEMBANGAN ===================== */
+function renderDevelopment_(){
+  const items = [
+    { icon: '🎓', title: 'Pelatihan Internal', desc: 'Daftar pelatihan yang tersedia.' },
+    { icon: '📜', title: 'Sertifikat', desc: 'Lihat sertifikat yang Anda miliki.' },
+    { icon: '🎯', title: 'Rencana Pengembangan', desc: 'Rencana pengembangan karir Anda.' },
+    { icon: '📚', title: 'Materi / Modul', desc: 'Akses materi dan modul pembelajaran.' }
+  ];
+
+  root.innerHTML = renderSubmenuSection_('Pengembangan', 'Tingkatkan skill dan pengembangan diri Anda.', items) + `
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+/* ===================== DOKUMEN & ADMINISTRASI ===================== */
+function renderDokumenAdministrasi_(){
+  const items = [
+    { icon: '📄', title: 'Dokumen Pribadi', desc: 'SK, Kontrak, Pakta Integritas, etc.' },
+    { icon: '📑', title: 'Dokumen Yayasan', desc: 'Dokumen dari yayasan & organisasi.' },
+    { icon: '📤', title: 'Upload Dokumen', desc: 'Upload dokumen baru (Coming Soon).' }
+  ];
+
+  root.innerHTML = renderSubmenuSection_('Dokumen & Administrasi', 'Akses dokumen resmi dan administrasi kepegawaian.', items) + `
+    <div class="card">
+      <div style="background:rgba(255,193,7,.15); border:1px solid rgba(255,193,7,.25); border-radius:10px; padding:10px 12px; font-size:12px; color:rgba(255,193,7,.95);">
+        <b>ℹ️ Read-only:</b> Dokumen bersifat read-only. Untuk submit dokumen, hubungi Admin HC.
+      </div>
+    </div>
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('dash')">‹ Kembali ke Dashboard</button>
+    </div>
+  `;
+}
+
+/* ===================== TUTORIAL PAGES ===================== */
+
+function renderTutorialSlipGaji_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">📋 Tutorial: Slip Gaji</div>
+      <div class="muted" style="margin-bottom:12px;">Panduan cara mengakses dan mengirim slip gaji Anda.</div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; font-size:15px; margin-bottom:12px;">Langkah-langkah:</div>
+      
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(14,165,233,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(14,165,233,.96);">1</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Buka menu Kesejahteraan</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Tekan tombol "Kesejahteraan" di Dashboard.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(14,165,233,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(14,165,233,.96);">2</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Pilih Slip Gaji</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Pilih menu "Slip Gaji" dari sub-menu yang tersedia.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(14,165,233,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(14,165,233,.96);">3</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Pilih Tahun dan Bulan</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Tentukan bulan dan tahun slip gaji yang ingin Anda lihat.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(14,165,233,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(14,165,233,.96);">4</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Kirim Slip (PDF)</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Tekan tombol "Kirim Slip (PDF)" untuk mengirim ke email dan WhatsApp Anda.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(14,165,233,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(14,165,233,.96);">5</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Cek Email & WhatsApp</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Cek Inbox atau Spam folder email Anda, dan WhatsApp untuk slip gaji PDF.</div>
+        </div>
+      </div>
+
+      <div style="background:rgba(168,85,247,.15); border:1px solid rgba(168,85,247,.25); border-radius:10px; padding:12px; font-size:12px; color:rgba(168,85,247,.95);">
+        <b>🔒 Keamanan:</b> Slip gaji adalah dokumen pribadi. Jaga kerahasiaannya dan jangan bagikan ke orang lain tanpa otorisasi.
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('layanan')">‹ Kembali ke Layanan Pegawai</button>
+    </div>
+  `;
+}
+
+function renderTutorialGantiPassword_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">🔐 Tutorial: Ganti Password</div>
+      <div class="muted" style="margin-bottom:12px;">Panduan cara mengubah password login Anda.</div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; font-size:15px; margin-bottom:12px;">Langkah-langkah:</div>
+      
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(34,197,94,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(34,197,94,.96);">1</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Buka Tab Setelan</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Di bagian bawah, tekan tombol "Setelan" (Settings).</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(34,197,94,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(34,197,94,.96);">2</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Klik "Ganti Password"</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Cari tombol atau menu "Ganti Password" di halaman setelan.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(34,197,94,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(34,197,94,.96);">3</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Masukkan Password Lama & Baru</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Ketik password lama untuk verifikasi, kemudian password baru (2x untuk konfirmasi).</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(34,197,94,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(34,197,94,.96);">4</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Simpan Perubahan</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Tekan tombol "Simpan" atau "Update Password".</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(34,197,94,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(34,197,94,.96);">5</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Login Ulang (jika diminta)</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Jika sistem meminta untuk logout/login ulang, lakukan agar perubahan tersimpan dengan baik.</div>
+        </div>
+      </div>
+
+      <div style="background:rgba(244,67,54,.15); border:1px solid rgba(244,67,54,.25); border-radius:10px; padding:12px; font-size:12px; color:rgba(244,67,54,.95);">
+        <b>⚠️ Penting:</b> Jangan bagikan password Anda kepada siapapun. Admin HC tidak akan pernah meminta password Anda.
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('layanan')">‹ Kembali ke Layanan Pegawai</button>
+    </div>
+  `;
+}
+
+function renderTutorialEditProfil_(){
+  root.innerHTML = `
+    <div class="card">
+      <div style="font-weight:900;font-size:18px;margin-bottom:6px;">✏️ Tutorial: Edit Data Profil</div>
+      <div class="muted" style="margin-bottom:12px;">Panduan cara mengubah data profil Anda.</div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; font-size:15px; margin-bottom:12px;">Langkah-langkah:</div>
+      
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(168,85,247,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(168,85,247,.96);">1</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Buka Tab Profil</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Di bagian bawah, tekan tombol "Profil".</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(168,85,247,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(168,85,247,.96);">2</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Lihat Data Profil Anda</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Lihat informasi pribadi, alamat, pendidikan, keluarga, dan data lainnya.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(168,85,247,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(168,85,247,.96);">3</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Klik Tombol Edit pada Field</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Pada data yang ingin diubah, tekan tombol edit (✏️ atau Edit) di sebelahnya.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(168,85,247,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(168,85,247,.96);">4</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Ubah Data & Periksa Kembali</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Masukkan data baru dan pastikan sudah benar sebelum menyimpan.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-bottom:16px;">
+        <div style="flex:0 0 28px; height:28px; border-radius:50%; background:rgba(168,85,247,.25); display:flex; align-items:center; justify-content:center; font-weight:700; color:rgba(168,85,247,.96);">5</div>
+        <div>
+          <div style="font-weight:700; color:rgba(255,255,255,.96);">Simpan Perubahan</div>
+          <div style="font-size:13px; color:rgba(255,255,255,.70); margin-top:4px;">Tekan tombol "Simpan" untuk menyimpan perubahan data profil Anda.</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+        <div style="background:rgba(34,197,94,.15); border:1px solid rgba(34,197,94,.25); border-radius:10px; padding:10px; font-size:12px; color:rgba(34,197,94,.95);">
+          <b>✅ Data Non-Sensitif</b><br>
+          Alamat, tanggal lahir, pendidikan → langsung simpan.
+        </div>
+        <div style="background:rgba(244,67,54,.15); border:1px solid rgba(244,67,54,.25); border-radius:10px; padding:10px; font-size:12px; color:rgba(244,67,54,.95);">
+          <b>⚠️ Data Sensitif</b><br>
+          NIK, rekening → wajib ceklis persetujuan khusus.
+        </div>
+      </div>
+
+      <div style="background:rgba(100,150,200,.15); border:1px solid rgba(100,150,200,.25); border-radius:10px; padding:12px; font-size:12px; color:rgba(100,150,200,.95);">
+        <b>💡 Tips:</b> Semua perubahan data akan dicatat dalam riwayat. Pastikan Anda login dengan akun yang tepat sebelum melakukan perubahan.
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn secondary" style="width:100%;" onclick="goto('layanan')">‹ Kembali ke Layanan Pegawai</button>
+    </div>
+  `;
+}
+
 /* ===================== NAV ===================== */
 function setActiveTab(route){
+  if (!nav) {
+    console.warn('[HCIS] setActiveTab: nav element not found');
+    return;
+  }
+  
   const tabs = nav.querySelectorAll('.tab');
+  if (!tabs || tabs.length === 0) {
+    console.warn('[HCIS] setActiveTab: no tabs found');
+    return;
+  }
+  
   tabs.forEach(t=>t.classList.remove('active'));
   if(route==='dash') tabs[0]?.classList.add('active');
   else if(route==='profil') tabs[1]?.classList.add('active');
   else if(route==='settings') tabs[2]?.classList.add('active');
   else tabs[0]?.classList.add('active');
+  
+  console.log('[HCIS] setActiveTab:', route);
 }
 function go(route){ goto(route); }
 
@@ -903,7 +1702,18 @@ function login(){
   const pin = document.getElementById('pin')?.value || '';
 
   google.script.run.withSuccessHandler(res=>{
-    if(!res || !res.ok) return renderLogin(res?.msg || 'Login gagal');
+    if(!res || !res.ok) {
+      let errorMsg = res?.msg || 'Login gagal';
+      
+      // Handle session errors
+      if (errorMsg.includes('ALREADY_LOGGED_IN')) {
+        errorMsg = 'NIP ini sedang login di device lain. Session lama akan dihapus. Silakan login ulang.';
+      } else if (errorMsg.includes('SESSION_EXPIRED')) {
+        errorMsg = 'Sesi Anda telah kadaluarsa. Silakan login kembali.';
+      }
+      
+      return renderLogin(errorMsg);
+    }
     boot();
   }).authLogin(nip, pin);
 }

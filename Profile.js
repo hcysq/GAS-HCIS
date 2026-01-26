@@ -2,9 +2,9 @@
  * Profile (Masterdata) - Robust + Debug
  *************************************************/
 
-function getProfilMasterdataSaya() {
+function getProfilMasterdataSaya(payload) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
     const emailSession = String(s.email || '').trim();
@@ -224,9 +224,9 @@ function normalizeEduField_(fieldKey, isFormal) {
  * DEBUG: panggil ini dari browser / console via google.script.run
  * untuk melihat apa yang kebaca dari Masterdata & session.
  */
-function debugProfilMasterdataSaya() {
+function debugProfilMasterdataSaya(payload) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nipSession = String(s.nip || '').trim();
     const nipKey = normalizeNIP_(nipSession);
 
@@ -288,11 +288,15 @@ function normalizeNIP_(v) {
  * Profil Users (structured)
  *************************************************/
 
-function getProfilUsersDetail() {
+function getProfilUsersDetail(payload) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
+    
+    // ✅ SECURITY: Validate session NIP
+    validateSessionNip_(nipSession, payload.deviceId);
+    
     const nipKey = normalizeNIP_(nipSession);
 
     if (!nipKey && !userIdSession) {
@@ -745,12 +749,12 @@ function ensureHistoriMutasiHeader_(sh) {
 
 /**
  * Simpan perubahan field profil dan catat ke histori
- * @param {object} params - { field_key, field_label, old_value, new_value, consent_checked }
+ * @param {object} payload - { field_key, field_label, old_value, new_value, consent_checked, deviceId }
  * @returns {object} { ok, msg, mutasi_id }
  */
-function saveProfilFieldChange(params) {
+function saveProfilFieldChange(payload) {
   try {
-    const s = requireLogin_();
+    const s = requireLogin_(payload.deviceId);
     const nipSession = String(s.nip || '').trim();
     const namaSession = String(s.nama || '').trim();
     
@@ -758,7 +762,7 @@ function saveProfilFieldChange(params) {
       return { ok: false, msg: 'Session tidak valid (NIP tidak ditemukan)' };
     }
 
-    const { field_key, field_label, old_value, new_value, consent_checked } = params;
+    const { field_key, field_label, old_value, new_value, consent_checked } = payload;
 
     // Validasi
     if (!field_key || new_value === undefined) {
