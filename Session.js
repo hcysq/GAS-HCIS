@@ -28,20 +28,31 @@ function setSession_(user) {
   };
   
   const cache = CacheService.getUserCache();
+  const lock = LockService.getScriptLock();
   
-  // Store device session (untuk read di session)
-  cache.put(
-    _DEVICE_SESSION_PREFIX + deviceId,
-    JSON.stringify(sessionData),
-    ttlSeconds
-  );
-  
-  // Store active session per NIP (untuk check single-login)
-  cache.put(
-    _ACTIVE_SESSION_PREFIX + nip,
-    JSON.stringify(sessionData),
-    ttlSeconds
-  );
+  lock.waitLock(10000);
+  try {
+    const activeSession = getActiveSessionForNip_(nip);
+    if (activeSession && activeSession.deviceId) {
+      cache.remove(_DEVICE_SESSION_PREFIX + activeSession.deviceId);
+    }
+
+    // Store device session (untuk read di session)
+    cache.put(
+      _DEVICE_SESSION_PREFIX + deviceId,
+      JSON.stringify(sessionData),
+      ttlSeconds
+    );
+    
+    // Store active session per NIP (untuk check single-login)
+    cache.put(
+      _ACTIVE_SESSION_PREFIX + nip,
+      JSON.stringify(sessionData),
+      ttlSeconds
+    );
+  } finally {
+    lock.releaseLock();
+  }
   
   // Pass deviceId ke frontend via return value
   // Frontend akan store di sessionStorage (per-tab isolation)
@@ -92,6 +103,11 @@ function getActiveSessionForNip_(nip) {
 function requireLogin_(deviceId) {
   const s = getSession_(deviceId);
   if (!s) throw new Error('SESSION_EXPIRED');
+  const activeSession = getActiveSessionForNip_(s.nip);
+  if (!activeSession) throw new Error('SESSION_EXPIRED');
+  if (activeSession.deviceId !== s.deviceId) {
+    throw new Error('ALREADY_LOGGED_IN');
+  }
   return s;
 }
 
