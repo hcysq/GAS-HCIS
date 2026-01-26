@@ -4,13 +4,13 @@
 
 /**
  * Ambil daftar Tahun & Bulan yang tersedia untuk user
- * @param {object} payload - { deviceId }
+ * @param {object} payload - { deviceId, nip, token }
  * @returns {object} { ok, data: { tahunList, bulanPerTahun }, msg }
  */
 function getAvailableSlipGajiBulan(payload) {
   try {
     // Pastikan user login
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan dalam session' };
@@ -84,12 +84,12 @@ function getAvailableSlipGajiBulan(payload) {
 
 /**
  * Ambil data Slip Gaji berdasarkan NIP user + Tahun + Bulan
- * @param {object} payload - { tahun, bulan, deviceId }
+ * @param {object} payload - { tahun, bulan, deviceId, nip, token }
  * @returns {object} { ok, data, msg }
  */
 function getSlipGaji(payload) {
   try {
-    let { tahun, bulan, deviceId } = payload;
+    let { tahun, bulan, deviceId, nip, token } = payload;
     // Validasi input
     tahun = Number(tahun);
     if (isNaN(tahun) || tahun < 2000 || tahun > 2099) {
@@ -109,14 +109,14 @@ function getSlipGaji(payload) {
     }
 
     // Pastikan user login
-    const s = requireLogin_(deviceId);
+    const s = requireLogin_(nip, deviceId, token);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan dalam session' };
     }
     
     // ✅ SECURITY: Validate session NIP
-    validateSessionNip_(nipUser, deviceId);
+    validateSessionNip_(nipUser, deviceId, token);
 
     // Buka sheet Slip Gaji
     const { sheet: sh, error: sheetErr } = getSlipGajiSheet_();
@@ -411,20 +411,20 @@ function buildPlaceholderReplacements_(data, periode) {
 
 /**
  * Generate dan Kirim Slip Gaji via PDF (dari Google Docs Template)
- * @param {object} payload - { tahun, bulan, deviceId }
+ * @param {object} payload - { tahun, bulan, deviceId, nip, token }
  * @returns {object} {ok, msg}
  */
 function generateAndSaveSlipGajiPDF(payload) {
   try {
-    const { tahun, bulan, deviceId } = payload;
-    const s = requireLogin_(deviceId);
+    const { tahun, bulan, deviceId, nip, token } = payload;
+    const s = requireLogin_(nip, deviceId, token);
     const nipUser = String(s.nip || '').trim();
     if (!nipUser) {
       return { ok: false, msg: 'NIP user tidak ditemukan' };
     }
 
     // Ambil data slip
-    const slipRes = getSlipGaji({ tahun, bulan, deviceId });
+    const slipRes = getSlipGaji({ tahun, bulan, deviceId, nip, token });
     if (!slipRes.ok) {
       return { ok: false, msg: slipRes.msg || 'Gagal mengambil data slip' };
     }

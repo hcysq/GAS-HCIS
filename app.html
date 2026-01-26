@@ -20,6 +20,34 @@ let state = {
   route: 'login',
 };
 
+const AUTH_STORAGE_KEY = 'HCIS_AUTH_SESSION_V1';
+
+function getStoredAuth_(){
+  try{
+    return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+  }catch(e){
+    return {};
+  }
+}
+
+function setStoredAuth_(auth){
+  if(!auth || !auth.deviceId || !auth.token || !auth.nip) return;
+  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+    deviceId: auth.deviceId,
+    token: auth.token,
+    nip: auth.nip
+  }));
+}
+
+function clearStoredAuth_(){
+  sessionStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function withAuthPayload_(payload = {}){
+  const auth = getStoredAuth_();
+  return Object.assign({}, payload, auth);
+}
+
 function isAuthed(){ return !!(state.me && state.me.ok); }
 
 function goto(route){
@@ -63,18 +91,28 @@ function boot(){
     }
   }
   
+  const authPayload = getStoredAuth_();
+  if (!authPayload.deviceId || !authPayload.token || !authPayload.nip) {
+    state.me = null;
+    state.route = 'login';
+    renderLogin();
+    return;
+  }
+
   google.script.run.withSuccessHandler(res=>{
     console.log('[HCIS] authMe response:', res?.ok ? 'OK' : 'FAIL');
     if(!res || !res.ok){
       state.me=null;
       state.route='login';
+      clearStoredAuth_();
       console.log('[HCIS] render login');
       renderLogin();
       return;
     }
     state.me=res;
+    setStoredAuth_(res);
     goto('dash');
-  }).authMe();
+  }).authMe(authPayload);
 }
 
 /* ===================== LOGIN ===================== */
@@ -286,7 +324,7 @@ function renderDashboard(){
     const elJab = document.getElementById('dashJabatan');
     if (elUnit) elUnit.innerHTML = `Unit: <b>${unit}</b>`;
     if (elJab)  elJab.innerHTML  = `Jabatan: <b>${jabatan}</b>`;
-  }).getProfilUsersDetail();
+  }).getProfilUsersDetail(withAuthPayload_());
 }
 
 
@@ -311,7 +349,7 @@ function renderProfil(){
       const payload = buildProfilPayload_(res.data);
       renderProfilLayout_(payload);
     })
-    .getProfilUsersDetail();
+    .getProfilUsersDetail(withAuthPayload_());
 }
 
 function buildProfilPayload_(raw){
@@ -874,7 +912,7 @@ function loadAvailableSlipGajiBulan_(){
       // Store untuk reference
       window.slipGajiData = { tahunList, bulanPerTahun };
     })
-    .getAvailableSlipGajiBulan();
+    .getAvailableSlipGajiBulan(withAuthPayload_());
 }
 
 function onTahunChange(){
@@ -934,7 +972,7 @@ function tampilkanSlipGaji(){
     .withFailureHandler(err => {
       resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Error</div><div class="muted" style="margin-top:6px;">${escapeHtml(err?.message || String(err))}</div></div>`;
     })
-    .getSlipGaji(Number(tahun), bulan);
+    .getSlipGaji(withAuthPayload_({ tahun: Number(tahun), bulan: bulan }));
 }
 
 function renderSlipGajiResult_(data){
@@ -1151,7 +1189,7 @@ function kirimSlipGajiPDF(){
       msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
       msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
     })
-    .generateAndSaveSlipGajiPDF(parseInt(tahun), bulan);
+    .generateAndSaveSlipGajiPDF(withAuthPayload_({ tahun: parseInt(tahun, 10), bulan: bulan }));
 }
 
 function showCommunicationMenu_(){
@@ -1714,6 +1752,7 @@ function login(){
       
       return renderLogin(errorMsg);
     }
+    setStoredAuth_(res);
     boot();
   }).authLogin(nip, pin);
 }
@@ -1722,8 +1761,9 @@ function logout(){
     if (typeof settingsResetState_ === 'function') settingsResetState_();
     state.me=null;
     state.route='login';
+    clearStoredAuth_();
     renderLogin('Anda sudah keluar.');
-  }).authLogout();
+  }).authLogout(withAuthPayload_());
 }
 
 /* ===================== PEEK PASSWORD ===================== */
@@ -1932,13 +1972,13 @@ function saveFieldChange() {
   }).withFailureHandler(err => {
     if (btn) btn.disabled = false;
     alert('Error: ' + (err?.message || String(err)));
-  }).saveProfilFieldChange({
+  }).saveProfilFieldChange(withAuthPayload_({
     field_key: state.fieldKey,
     field_label: state.fieldLabel,
     old_value: state.oldValue,
     new_value: state.newValue,
     consent_checked: consentChecked
-  });
+  }));
 }
 
 /* ===================== CLOSE MODALS ON OVERLAY CLICK ===================== */

@@ -4,7 +4,7 @@
 
 function getSaldoCutiSaya(payload) {
   try {
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nip = s.nip;
 
     const t = readTable_(CFG.SHEET_SALDO);

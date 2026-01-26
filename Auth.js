@@ -20,7 +20,7 @@ function authLogin(nip, pin) {
     return { ok:false, msg:'Login gagal' };
   }
 
-  const deviceId = setSession_({
+  const session = setSession_({
     nip,
     nama: user.nama,
     role: user.role,
@@ -28,18 +28,31 @@ function authLogin(nip, pin) {
     userId: user.userId
   });
   
-  return { ok:true, deviceId: deviceId };
+  return {
+    ok: true,
+    deviceId: session.deviceId,
+    token: session.token,
+    nip: session.nip
+  };
 }
 
 function authMe(payload) {
-  const s = getSession_(payload.deviceId);
-  if (!s) return { ok:false };
-  return { ok:true, ...s };
+  try {
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
+    return { ok: true, ...s };
+  } catch (e) {
+    return { ok: false };
+  }
 }
 
 function authLogout(payload) {
-  clearSession_(payload.deviceId);
-  return { ok:true };
+  try {
+    requireLogin_(payload.nip, payload.deviceId, payload.token);
+  } catch (e) {
+    return { ok: false };
+  }
+  clearSession_(payload.nip, payload.deviceId);
+  return { ok: true };
 }
 
 function loadUsersMap_() {

@@ -6,6 +6,18 @@
 const _DEVICE_SESSION_PREFIX = 'HCIS_DEVICE_SESSION_';
 const _ACTIVE_SESSION_PREFIX = 'HCIS_ACTIVE_SESSION_';
 
+function getSessionCache_() {
+  return CacheService.getScriptCache();
+}
+
+function getDeviceSessionKey_(nip, deviceId) {
+  return `${_DEVICE_SESSION_PREFIX}${nip}_${deviceId}`;
+}
+
+function getActiveSessionKey_(nip) {
+  return `${_ACTIVE_SESSION_PREFIX}${nip}`;
+}
+
 function setSession_(user) {
   const nip = user.nip;
   const deviceId = Utilities.getUuid();
@@ -27,43 +39,79 @@ function setSession_(user) {
     createdAt: new Date().getTime()
   };
   
-  const cache = CacheService.getUserCache();
+  const cache = getSessionCache_();
+  const deviceKey = getDeviceSessionKey_(nip, deviceId);
+  const activeKey = getActiveSessionKey_(nip);
+  const lock = LockService.getScriptLock();
   
   // Store device session (untuk read di session)
-  cache.put(
-    _DEVICE_SESSION_PREFIX + deviceId,
-    JSON.stringify(sessionData),
-    ttlSeconds
-  );
+  cache.put(deviceKey, JSON.stringify(sessionData), ttlSeconds);
   
   // Store active session per NIP (untuk check single-login)
-  cache.put(
-    _ACTIVE_SESSION_PREFIX + nip,
-    JSON.stringify(sessionData),
-    ttlSeconds
-  );
+  lock.waitLock(30000);
+  try {
+    const existingActive = cache.get(activeKey);
+    if (existingActive) {
+      try {
+        const parsed = JSON.parse(existingActive);
+        if (parsed && parsed.deviceId && parsed.deviceId !== deviceId) {
+          const oldDeviceKey = getDeviceSessionKey_(parsed.nip || nip, parsed.deviceId);
+          cache.remove(oldDeviceKey);
+        }
+      } catch (e) {
+        // ignore malformed cache
+      }
+    }
+
+    cache.put(activeKey, JSON.stringify(sessionData), ttlSeconds);
+  } finally {
+    lock.releaseLock();
+  }
   
-  // Pass deviceId ke frontend via return value
-  // Frontend akan store di sessionStorage (per-tab isolation)
-  return deviceId;
+  return {
+    nip: nip,
+    deviceId: deviceId,
+    token: token
+  };
 }
 
-function clearSession_(deviceId) {
-  if (deviceId) {
-    clearSessionByDeviceId_(deviceId);
+function clearSession_(nip, deviceId) {
+  if (nip && deviceId) {
+    clearSessionByDeviceId_(nip, deviceId);
   }
 }
 
-function clearSessionByDeviceId_(deviceId) {
-  const cache = CacheService.getUserCache();
-  cache.remove(_DEVICE_SESSION_PREFIX + deviceId);
+function clearSessionByDeviceId_(nip, deviceId) {
+  const cache = getSessionCache_();
+  const deviceKey = getDeviceSessionKey_(nip, deviceId);
+  const activeKey = getActiveSessionKey_(nip);
+  const lock = LockService.getScriptLock();
+
+  cache.remove(deviceKey);
+
+  lock.waitLock(30000);
+  try {
+    const activeSession = cache.get(activeKey);
+    if (activeSession) {
+      try {
+        const parsed = JSON.parse(activeSession);
+        if (parsed && parsed.deviceId === deviceId) {
+          cache.remove(activeKey);
+        }
+      } catch (e) {
+        cache.remove(activeKey);
+      }
+    }
+  } finally {
+    lock.releaseLock();
+  }
 }
 
-function getSession_(deviceId) {
-  if (!deviceId) return null;
+function getSession_(nip, deviceId) {
+  if (!nip || !deviceId) return null;
   
-  const cache = CacheService.getUserCache();
-  const sessionJson = cache.get(_DEVICE_SESSION_PREFIX + deviceId);
+  const cache = getSessionCache_();
+  const sessionJson = cache.get(getDeviceSessionKey_(nip, deviceId));
 
   if (!sessionJson) {
     return null;
@@ -77,8 +125,19 @@ function getSession_(deviceId) {
 }
 
 function getActiveSessionForNip_(nip) {
-  const cache = CacheService.getUserCache();
-  const sessionJson = cache.get(_ACTIVE_SESSION_PREFIX + nip);
+  if (!nip) return null;
+
+  const cache = getSessionCache_();
+  const lock = LockService.getScriptLock();
+  const activeKey = getActiveSessionKey_(nip);
+
+  lock.waitLock(30000);
+  let sessionJson = null;
+  try {
+    sessionJson = cache.get(activeKey);
+  } finally {
+    lock.releaseLock();
+  }
   
   if (!sessionJson) return null;
   
@@ -89,14 +148,27 @@ function getActiveSessionForNip_(nip) {
   }
 }
 
-function requireLogin_(deviceId) {
-  const s = getSession_(deviceId);
+function requireLogin_(nip, deviceId, token) {
+  if (!nip || !deviceId || !token) {
+    throw new Error('SESSION_EXPIRED');
+  }
+
+  const s = getSession_(nip, deviceId);
   if (!s) throw new Error('SESSION_EXPIRED');
+  if (s.nip !== nip || s.deviceId !== deviceId || s.token !== token) {
+    throw new Error('SECURITY_ERROR: Session mismatch');
+  }
+
+  const activeSession = getActiveSessionForNip_(nip);
+  if (!activeSession || activeSession.deviceId !== deviceId || activeSession.token !== token) {
+    throw new Error('ALREADY_LOGGED_IN');
+  }
+
   return s;
 }
 
-function validateSessionNip_(requiredNip, deviceId) {
-  const session = requireLogin_(deviceId);
+function validateSessionNip_(requiredNip, deviceId, token) {
+  const session = requireLogin_(requiredNip, deviceId, token);
   if (session.nip !== requiredNip) {
     throw new Error(`SECURITY_ERROR: Session NIP mismatch (expected ${requiredNip}, got ${session.nip})`);
   }

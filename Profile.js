@@ -4,7 +4,7 @@
 
 function getProfilMasterdataSaya(payload) {
   try {
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
     const emailSession = String(s.email || '').trim();
@@ -226,7 +226,7 @@ function normalizeEduField_(fieldKey, isFormal) {
  */
 function debugProfilMasterdataSaya(payload) {
   try {
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nipSession = String(s.nip || '').trim();
     const nipKey = normalizeNIP_(nipSession);
 
@@ -290,12 +290,12 @@ function normalizeNIP_(v) {
 
 function getProfilUsersDetail(payload) {
   try {
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nipSession = String(s.nip || '').trim();
     const userIdSession = String(s.userId || '').trim();
     
     // ✅ SECURITY: Validate session NIP
-    validateSessionNip_(nipSession, payload.deviceId);
+    validateSessionNip_(nipSession, payload.deviceId, payload.token);
     
     const nipKey = normalizeNIP_(nipSession);
 
@@ -749,12 +749,12 @@ function ensureHistoriMutasiHeader_(sh) {
 
 /**
  * Simpan perubahan field profil dan catat ke histori
- * @param {object} payload - { field_key, field_label, old_value, new_value, consent_checked, deviceId }
+ * @param {object} payload - { field_key, field_label, old_value, new_value, consent_checked, deviceId, nip, token }
  * @returns {object} { ok, msg, mutasi_id }
  */
 function saveProfilFieldChange(payload) {
   try {
-    const s = requireLogin_(payload.deviceId);
+    const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
     const nipSession = String(s.nip || '').trim();
     const namaSession = String(s.nama || '').trim();
     
