@@ -77,17 +77,27 @@ function boot(){
     }
   }
   
+  const authPayload = getStoredAuth_();
+  if (!authPayload.deviceId || !authPayload.token || !authPayload.nip) {
+    state.me = null;
+    state.route = 'login';
+    renderLogin();
+    return;
+  }
+
   google.script.run.withSuccessHandler(res=>{
     console.log('[HCIS] authMe response:', res?.ok ? 'OK' : 'FAIL');
     if(!res || !res.ok){
       state.me=null;
       state.route='login';
+      clearStoredAuth_();
       console.log('[HCIS] render login');
       renderLogin();
       return;
     }
     setDeviceId_(res?.deviceId);
     state.me=res;
+    setStoredAuth_(res);
     goto('dash');
   }).authMe(getAuthPayload_());
 }
@@ -1738,6 +1748,7 @@ function logout(){
     if (typeof settingsResetState_ === 'function') settingsResetState_();
     state.me=null;
     state.route='login';
+    clearStoredAuth_();
     renderLogin('Anda sudah keluar.');
   }).authLogout(getAuthPayload_());
 }
@@ -1948,7 +1959,7 @@ function saveFieldChange() {
   }).withFailureHandler(err => {
     if (btn) btn.disabled = false;
     alert('Error: ' + (err?.message || String(err)));
-  }).saveProfilFieldChange({
+  }).saveProfilFieldChange(withAuthPayload_({
     field_key: state.fieldKey,
     field_label: state.fieldLabel,
     old_value: state.oldValue,

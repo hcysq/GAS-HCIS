@@ -8,6 +8,34 @@ let state = {
   route: 'login',
 };
 
+const AUTH_STORAGE_KEY = 'HCIS_AUTH_SESSION_V1';
+
+function getStoredAuth_(){
+  try{
+    return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+  }catch(e){
+    return {};
+  }
+}
+
+function setStoredAuth_(auth){
+  if(!auth || !auth.deviceId || !auth.token || !auth.nip) return;
+  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+    deviceId: auth.deviceId,
+    token: auth.token,
+    nip: auth.nip
+  }));
+}
+
+function clearStoredAuth_(){
+  sessionStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function withAuthPayload_(payload = {}){
+  const auth = getStoredAuth_();
+  return Object.assign({}, payload, auth);
+}
+
 function isAuthed(){ return !!(state.me && state.me.ok); }
 
 function goto(route){
@@ -23,16 +51,26 @@ function goto(route){
 }
 
 function boot(){
+  const authPayload = getStoredAuth_();
+  if (!authPayload.deviceId || !authPayload.token || !authPayload.nip) {
+    state.me = null;
+    state.route = 'login';
+    renderLogin();
+    return;
+  }
+
   google.script.run.withSuccessHandler(res=>{
     if(!res || !res.ok){
       state.me=null;
       state.route='login';
+      clearStoredAuth_();
       renderLogin();
       return;
     }
     state.me=res;
+    setStoredAuth_(res);
     goto('dash');
-  }).authMe();
+  }).authMe(authPayload);
 }
 
 /* ===================== LOGIN ===================== */
@@ -169,7 +207,7 @@ function renderDashboard(){
     const elJab = document.getElementById('dashJabatan');
     if (elUnit) elUnit.innerHTML = `Unit: <b>${escapeHtml(unit)}</b>`;
     if (elJab)  elJab.innerHTML  = `Jabatan: <b>${escapeHtml(jabatan)}</b>`;
-  }).getProfilMasterdataSaya();
+  }).getProfilMasterdataSaya(withAuthPayload_());
 }
 
 
@@ -232,7 +270,7 @@ function renderProfil(){
         </div>
       `;
     })
-    .getProfilMasterdataSaya();
+    .getProfilMasterdataSaya(withAuthPayload_());
 }
 
 function buildProfilPayload_(raw){
@@ -458,6 +496,7 @@ function login(){
 
   google.script.run.withSuccessHandler(res=>{
     if(!res || !res.ok) return renderLogin(res?.msg || 'Login gagal');
+    setStoredAuth_(res);
     boot();
   }).authLogin(nip, pin);
 }
@@ -466,8 +505,9 @@ function logout(){
     if (typeof settingsResetState_ === 'function') settingsResetState_();
     state.me=null;
     state.route='login';
+    clearStoredAuth_();
     renderLogin('Anda sudah keluar.');
-  }).authLogout();
+  }).authLogout(withAuthPayload_());
 }
 
 /* ===================== PEEK PASSWORD ===================== */

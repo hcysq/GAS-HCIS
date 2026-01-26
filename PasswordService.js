@@ -19,14 +19,14 @@ const OTP_CACHE_TTL = 30; // detik
 
 // STEP 1: Request OTP (cek password lama)
 function requestPasswordChange(payload){
-  const { oldPassword, deviceId } = payload;
+  const { oldPassword, deviceId, nip, token } = payload;
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(deviceId);
+    const s = requireLogin_(nip, deviceId, token);
     const nip = String(s.nip || '').trim();
     if (!nip) return { ok:false, msg:'Session habis. Silakan login ulang.' };
 
@@ -71,14 +71,14 @@ function requestPasswordChange(payload){
 
 // STEP 2: Verifikasi OTP
 function verifyPasswordOTP(payload){
-  const { inputOTP, deviceId } = payload;
+  const { inputOTP, deviceId, nip, token } = payload;
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(deviceId);
+    const s = requireLogin_(nip, deviceId, token);
     const nip = String(s.nip || '').trim();
 
     const ctx = loadUsersPasswordMap_();
@@ -117,14 +117,14 @@ function verifyPasswordOTP(payload){
 
 // STEP 3: Set password baru
 function updatePassword(payload){
-  const { newPass, deviceId } = payload;
+  const { newPass, deviceId, nip, token } = payload;
   const lock = LockService.getScriptLock();
   if(!lock.tryLock(30000)){
     return { ok:false, msg:'Sistem sibuk. Coba lagi.' };
   }
 
   try{
-    const s = requireLogin_(deviceId);
+    const s = requireLogin_(nip, deviceId, token);
     const nip = String(s.nip || '').trim();
 
     if(!validatePassword_(String(newPass||''))){
@@ -149,7 +149,7 @@ function updatePassword(payload){
     });
 
     clearUsersCache_();
-    clearSession_(deviceId);
+    clearSession_(nip, deviceId);
 
     return { ok:true };
   }catch(e){
@@ -338,5 +338,4 @@ function clearOTPRow_(row, cols){
   if(cols.cEXP !== -1) row[cols.cEXP] = '';
   if(cols.cTRY !== -1) row[cols.cTRY] = '';
 }
-
 
