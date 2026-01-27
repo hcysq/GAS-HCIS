@@ -7,16 +7,29 @@ const _USERS_PASSWORD_CACHE_KEY = 'HCIS_USERS_PASSMAP_V1';
  *************************************************/
 
 function authLogin(nip, pin) {
+  console.log("Login Attempt:", nip);
+  
   nip = txt(nip);
   pin = txt(pin);
-  if (!nip || !pin) return { ok:false, msg:'NIP & PIN wajib diisi' };
+  
+  console.log("Login Attempt (after txt):", nip ? '***' : '(empty)', 'PIN:', pin ? '***' : '(empty)');
+  
+  if (!nip || !pin) {
+    console.log("Login Attempt: Validation failed - empty fields");
+    return { ok:false, msg:'NIP & PIN wajib diisi' };
+  }
 
   const userMap = loadUsersMap_();
   const user = userMap[nip];
 
-  if (!user || !user.aktif) return { ok:false, msg:'Login gagal' };
+  if (!user || !user.aktif) {
+    console.log("Login Attempt: User not found or inactive");
+    return { ok:false, msg:'Login gagal' };
+  }
 
-  if (hashPin_(pin) !== user.pinHash) {
+  const pinHash = hashPin_(pin);
+  if (pinHash !== user.pinHash) {
+    console.log("Login Attempt: Password mismatch");
     return { ok:false, msg:'Login gagal' };
   }
 
@@ -28,6 +41,8 @@ function authLogin(nip, pin) {
     userId: user.userId
   });
   
+  console.log("Login Attempt: Success - NIP:", nip, "DeviceId:", session.deviceId);
+  
   return {
     ok: true,
     deviceId: session.deviceId,
@@ -37,11 +52,24 @@ function authLogin(nip, pin) {
 }
 
 function authMe(payload) {
+  console.log("authMe called with payload:", {
+    hasNip: !!payload.nip,
+    hasDeviceId: !!payload.deviceId,
+    hasToken: !!payload.token
+  });
+  
   try {
+    if (!payload.nip || !payload.deviceId || !payload.token) {
+      console.log("authMe: Missing required fields");
+      return { ok: false, msg: 'Missing required auth fields' };
+    }
+    
     const s = requireLogin_(payload.nip, payload.deviceId, payload.token);
+    console.log("authMe: Session validated successfully for NIP:", payload.nip);
     return { ok: true, ...s };
   } catch (e) {
-    return { ok: false };
+    console.log("authMe: Error -", e.message || String(e));
+    return { ok: false, msg: e.message || 'Session validation failed' };
   }
 }
 

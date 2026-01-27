@@ -31,7 +31,12 @@ function setDeviceId_(deviceId){
 }
 
 function getAuthPayload_(){
-  return { deviceId: getDeviceId_() };
+  const auth = getStoredAuth_();
+  return { 
+    deviceId: auth.deviceId,
+    token: auth.token,
+    nip: auth.nip
+  };
 }
 
 function getStoredAuth_(){
@@ -102,28 +107,49 @@ function boot(){
   }
   
   const authPayload = getStoredAuth_();
+  console.log('[HCIS] boot() - checking stored auth:', {
+    hasDeviceId: !!authPayload.deviceId,
+    hasToken: !!authPayload.token,
+    hasNip: !!authPayload.nip
+  });
+  
   if (!authPayload.deviceId || !authPayload.token || !authPayload.nip) {
+    console.log('[HCIS] boot() - missing auth data, redirecting to login');
     state.me = null;
     state.route = 'login';
     renderLogin();
     return;
   }
 
+  const payloadToSend = getAuthPayload_();
+  console.log('[HCIS] boot() - calling authMe with payload:', {
+    hasDeviceId: !!payloadToSend.deviceId,
+    hasToken: !!payloadToSend.token,
+    hasNip: !!payloadToSend.nip
+  });
+
   google.script.run.withSuccessHandler(res=>{
-    console.log('[HCIS] authMe response:', res?.ok ? 'OK' : 'FAIL');
+    console.log('[HCIS] authMe response:', res?.ok ? 'OK' : 'FAIL', res?.msg || '');
     if(!res || !res.ok){
+      console.log('[HCIS] authMe failed, clearing auth and redirecting to login');
       state.me=null;
       state.route='login';
       clearStoredAuth_();
-      console.log('[HCIS] render login');
       renderLogin();
       return;
     }
     setDeviceId_(res?.deviceId);
     state.me=res;
     setStoredAuth_(res);
+    console.log('[HCIS] authMe success, redirecting to dashboard');
     goto('dash');
-  }).authMe(getAuthPayload_());
+  }).withFailureHandler(err=>{
+    console.error('[HCIS] authMe failure handler - error:', err);
+    state.me=null;
+    state.route='login';
+    clearStoredAuth_();
+    renderLogin('Error: ' + (err?.message || String(err) || 'Gagal memverifikasi session'));
+  }).authMe(payloadToSend);
 }
 
 /* ===================== LOGIN ===================== */
@@ -983,7 +1009,7 @@ function tampilkanSlipGaji(){
     .withFailureHandler(err => {
       resultContainer.innerHTML = `<div class="card"><div style="color:#c0392b;font-weight:800;">Error</div><div class="muted" style="margin-top:6px;">${escapeHtml(err?.message || String(err))}</div></div>`;
     })
-    .getSlipGaji({ tahun: Number(tahun), bulan, deviceId: getDeviceId_() });
+    .getSlipGaji(withAuthPayload_({ tahun: Number(tahun), bulan }));
 }
 
 function renderSlipGajiResult_(data){
@@ -1200,7 +1226,7 @@ function kirimSlipGajiPDF(){
       msgEl.style.background = 'rgba(244, 67, 54, 0.15)';
       msgEl.style.color = 'rgba(244, 67, 54, 0.95)';
     })
-    .generateAndSaveSlipGajiPDF({ tahun: parseInt(tahun, 10), bulan, deviceId: getDeviceId_() });
+    .generateAndSaveSlipGajiPDF(withAuthPayload_({ tahun: parseInt(tahun, 10), bulan }));
 }
 
 function showCommunicationMenu_(){
@@ -1747,25 +1773,61 @@ function go(route){ goto(route); }
 
 /* ===================== AUTH ===================== */
 function login(){
-  const nip = document.getElementById('nip')?.value || '';
-  const pin = document.getElementById('pin')?.value || '';
+  console.log('[HCIS] login() called');
+  
+  const nipEl = document.getElementById('nip');
+  const pinEl = document.getElementById('pin');
+  
+  if (!nipEl || !pinEl) {
+    console.error('[HCIS] login() error: input elements not found');
+    renderLogin('Error: Form tidak ditemukan. Silakan refresh halaman.');
+    return;
+  }
+  
+  const nip = nipEl.value || '';
+  const pin = pinEl.value || '';
+  
+  console.log('[HCIS] login() attempt - NIP:', nip ? '***' : '(empty)', 'PIN:', pin ? '***' : '(empty)');
+  
+  if (!nip || !pin) {
+    console.warn('[HCIS] login() validation failed: empty fields');
+    renderLogin('NIP dan Password wajib diisi');
+    return;
+  }
 
-  google.script.run.withSuccessHandler(res=>{
-    if(!res || !res.ok) {
-      let errorMsg = res?.msg || 'Login gagal';
+  google.script.run
+    .withSuccessHandler(res=>{
+      console.log('[HCIS] login() success handler - response:', res?.ok ? 'OK' : 'FAIL', res?.msg || '');
       
-      // Handle session errors
-      if (errorMsg.includes('ALREADY_LOGGED_IN')) {
-        errorMsg = 'NIP ini sedang login di device lain. Session lama akan dihapus. Silakan login ulang.';
-      } else if (errorMsg.includes('SESSION_EXPIRED')) {
-        errorMsg = 'Sesi Anda telah kadaluarsa. Silakan login kembali.';
+      if(!res || !res.ok) {
+        let errorMsg = res?.msg || 'Login gagal';
+        
+        // Handle session errors
+        if (errorMsg.includes('ALREADY_LOGGED_IN')) {
+          errorMsg = 'NIP ini sedang login di device lain. Session lama akan dihapus. Silakan login ulang.';
+        } else if (errorMsg.includes('SESSION_EXPIRED')) {
+          errorMsg = 'Sesi Anda telah kadaluarsa. Silakan login kembali.';
+        }
+        
+        return renderLogin(errorMsg);
       }
       
-      return renderLogin(errorMsg);
-    }
-    setDeviceId_(res?.deviceId);
-    boot();
-  }).authLogin(nip, pin);
+      // Simpan auth data ke sessionStorage sebelum boot()
+      console.log('[HCIS] login() success - saving auth data');
+      setStoredAuth_({
+        deviceId: res?.deviceId,
+        token: res?.token,
+        nip: res?.nip
+      });
+      
+      console.log('[HCIS] login() success - calling boot()');
+      boot();
+    })
+    .withFailureHandler(err=>{
+      console.error('[HCIS] login() failure handler - error:', err);
+      renderLogin('Error: ' + (err?.message || String(err) || 'Gagal menghubungi server'));
+    })
+    .authLogin(nip, pin);
 }
 function logout(){
   google.script.run.withSuccessHandler(()=>{

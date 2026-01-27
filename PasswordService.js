@@ -27,12 +27,12 @@ function requestPasswordChange(payload){
 
   try{
     const s = requireLogin_(nip, deviceId, token);
-    const nip = String(s.nip || '').trim();
-    if (!nip) return { ok:false, msg:'Session habis. Silakan login ulang.' };
+    const nipUser = String(s.nip || '').trim();
+    if (!nipUser) return { ok:false, msg:'Session habis. Silakan login ulang.' };
 
     const ctx = loadUsersPasswordMap_();
     const cols = ctx.cols;
-    const user = ctx.map[nip];
+    const user = ctx.map[nipUser];
 
     if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
@@ -79,11 +79,11 @@ function verifyPasswordOTP(payload){
 
   try{
     const s = requireLogin_(nip, deviceId, token);
-    const nip = String(s.nip || '').trim();
+    const nipUser = String(s.nip || '').trim();
 
     const ctx = loadUsersPasswordMap_();
     const cols = ctx.cols;
-    const user = ctx.map[nip];
+    const user = ctx.map[nipUser];
     if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
     const exp = user.exp;
@@ -125,7 +125,7 @@ function updatePassword(payload){
 
   try{
     const s = requireLogin_(nip, deviceId, token);
-    const nip = String(s.nip || '').trim();
+    const nipUser = String(s.nip || '').trim();
 
     if(!validatePassword_(String(newPass||''))){
       return { ok:false, msg:'Password tidak memenuhi aturan: min 8, ada huruf besar, angka, simbol.' };
@@ -133,7 +133,7 @@ function updatePassword(payload){
 
     const ctx = loadUsersPasswordMap_();
     const cols = ctx.cols;
-    const user = ctx.map[nip];
+    const user = ctx.map[nipUser];
     if(!user) return { ok:false, msg:'User tidak ditemukan' };
 
     if(String(user.pass||'').trim() === String(newPass||'').trim()){
@@ -149,7 +149,7 @@ function updatePassword(payload){
     });
 
     clearUsersCache_();
-    clearSession_(nip, deviceId);
+    clearSession_(nipUser, deviceId);
 
     return { ok:true };
   }catch(e){
