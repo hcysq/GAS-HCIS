@@ -1,0 +1,2 @@
+# Mengabaikan kunci rahasia Firebase agar tidak masuk ke Git/GitHub
+ServiceAccount.js
